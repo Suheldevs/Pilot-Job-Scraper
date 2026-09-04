@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      /* Palette lifted from the dashboard's own login page so the two feel like
+         one product, including its dark-mode variant. */
+      :root {
+        --bg: #f7f6f3;
+        --card: #fff;
+        --ink: #16181d;
+        --mute: #5d636e;
+        --line: #e2e0da;
+        --accent: #1d6b3f;
+        --accent-ink: #fff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161a;
+          --card: #1c1f25;
+          --ink: #e9eaec;
+          --mute: #9aa1ac;
+          --line: #2c313a;
+          --accent: #5fbd88;
+          --accent-ink: #10231a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        width: 320px;
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 14px/1.5 "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 13px 16px;
+        background: var(--card);
+        border-bottom: 1px solid var(--line);
+      }
+      .mark {
+        width: 26px;
+        height: 26px;
+        flex: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 13px;
+      }
+      header h1 { font-size: 14px; margin: 0; font-weight: 600; }
+      header p { font-size: 11px; margin: 0; color: var(--mute); }
+      .body { padding: 16px; }
+      label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--mute);
+        margin: 0 0 5px;
+      }
+      input {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        color: var(--ink);
+        border-radius: 9px;
+        padding: 10px 11px;
+        font: inherit;
+        margin-bottom: 12px;
+        min-height: 40px;
+      }
+      input:focus { outline: none; border-color: var(--accent); }
+      button {
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        padding: 11px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        min-height: 42px;
+      }
+      .primary { background: var(--accent); color: var(--accent-ink); }
+      .secondary { background: var(--card); color: var(--ink); border-color: var(--line); }
+      .secondary:hover { border-color: var(--accent); }
+      button:disabled { opacity: 0.55; cursor: default; }
+      .ghost {
+        width: auto;
+        background: none;
+        border: 0;
+        color: var(--mute);
+        font-weight: 500;
+        font-size: 12px;
+        padding: 4px 0;
+        min-height: 0;
+      }
+      .ghost:hover { color: var(--ink); text-decoration: underline; }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .who { font-size: 12px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .msg { font-size: 12px; border-radius: 9px; padding: 9px 11px; margin-top: 12px; }
+      .ok { background: rgba(29, 107, 63, 0.1); color: var(--accent); }
+      .err { background: rgba(192, 57, 43, 0.12); color: #c0392b; }
+      .info { background: rgba(93, 99, 110, 0.12); color: var(--mute); }
+      .hint { font-size: 11px; color: var(--mute); margin: 10px 0 0; }
+      .hint b { color: var(--ink); font-weight: 600; }
+      .stack > button + button { margin-top: 8px; }
+      a { color: var(--accent); }
+      .hidden { display: none; }
+      .spin {
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        margin-right: 6px;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        vertical-align: -1px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="mark">P</div>
+      <div>
+        <h1>Pilot Grabber</h1>
+        <p>Job boards to your dashboard</p>
+      </div>
+    </header>
+
+    <!-- LOGIN -->
+    <div id="loginView" class="body hidden">
+      <label for="passphrase">Dashboard passphrase</label>
+      <input id="passphrase" type="password" placeholder="Passphrase" autocomplete="off" />
+      <label for="serverUrl">Dashboard URL</label>
+      <input id="serverUrl" type="url" spellcheck="false" placeholder="https://pilot-78c.pages.dev" />
+      <button id="loginBtn" class="primary">Sign in</button>
+      <div id="loginMsg"></div>
+      <p class="hint">
+        Same passphrase as the dashboard's sign-in page. It is stored in this
+        browser profile so the extension can re-authenticate on its own.
+      </p>
+    </div>
+
+    <!-- GRAB -->
+    <div id="grabView" class="body hidden">
+      <div class="row">
+        <span class="who" id="who"></span>
+        <button id="logoutBtn" class="ghost">Sign out</button>
+      </div>
+      <div class="stack">
+        <button id="grabBtn" class="primary">Grab what's on screen</button>
+        <button id="autoBtn" class="secondary">Auto-scroll &amp; grab</button>
+      </div>
+      <div id="grabMsg"></div>
+      <p class="hint">
+        <b>On screen</b> is the safe one: it reads only the text already rendered
+        for you, on your click, and nothing else.<br />
+        <b>Auto-scroll</b> scrolls the page itself to load more posts. It keeps
+        running if you close this popup. Use it sparingly - a page that scrolls
+        itself is far more detectable than a single manual grab.<br />
+        Works on LinkedIn, Naukri, Wellfound, Internshala and Indeed.
+      </p>
+      <p class="hint" id="openApp"></p>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+name = "pilot"
+pages_build_output_dir = "."
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "job-outreach"
+database_id = "e655ed5e-a357-44f2-aeb3-0441d996374b"

@@ -1,0 +1,31 @@
+# Never upload these as public assets.
+.cf-credentials
+.dev.vars
+.secrets-generated.txt
+.gitignore
+.assetsignore
+devserver.log
+migrate.log
+
+# Server-side / tooling — not web assets.
+# (functions/ is excluded by wrangler automatically — don't list it here.)
+venv
+node_modules
+.wrangler
+__pycache__
+*.py
+*.pyc
+*.sql
+*.mjs
+*.toml
+*.txt
+*.log
+*.bak
+sources
+extension
+migrations
+scrape.cmd
+.push-credentials
+*.cmd
+
+README.md

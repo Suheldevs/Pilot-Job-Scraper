@@ -1,0 +1,60 @@
+{
+  "_comment": [
+    "Firecrawl is the fallback layer, for careers pages no API covers.",
+    "Every other source is a free official API or feed; this one costs credits,",
+    "so it is pointed at a named list rather than turned loose on a crawl.",
+    "",
+    "Add a company here when: it has a careers page, it is NOT on Greenhouse /",
+    "Lever / Ashby / Keka (run `probe_keka` and `probe_ats` first - they are",
+    "free), and it has no RSS or JSON feed. Firecrawl renders the page including",
+    "JS and returns markdown, which scoring and contact extraction read.",
+    "",
+    "The API key lives in .push-credentials (gitignored) as FIRECRAWL_API_KEY.",
+    "It is never committed and the deploy script refuses to ship any file",
+    "containing it."
+  ],
+  "enabled": true,
+  "limits": {
+    "_comment": "One page per entry per run. 500 free credits is ~500 page renders, so at 6-hourly runs keep this list short.",
+    "max_pages_per_run": 12,
+    "delay_seconds": 2
+  },
+  "targets": [
+    {
+      "company": "Cloudesign",
+      "url": "https://cloudesign.keka.com/careers/",
+      "city": "blr",
+      "_why": "Kept as a known-good target: this page reliably lists openings, so a run with 0 results means something broke rather than 'nothing is hiring'."
+    },
+    {
+      "company": "Zethic Technologies",
+      "url": "https://zethic.com/careers/",
+      "city": "blr",
+      "_why": "Already in the tracker with an HR inbox; not on any ATS we probe."
+    },
+    {
+      "company": "Nextbrain Technologies",
+      "url": "https://www.nextbraintech.com/careers",
+      "city": "blr",
+      "_why": "Seed company, Mahadevapura. No ATS board found."
+    },
+    {
+      "company": "Digit88",
+      "url": "https://www.digit88.com/careers/",
+      "city": "blr",
+      "_why": "75+ engineers, B2B/B2C SaaS product teams."
+    },
+    {
+      "company": "Nirmitee.io",
+      "url": "https://nirmitee.io/careers",
+      "city": "pune",
+      "_why": "Product studio, React + Node."
+    },
+    {
+      "company": "Webfry Solutions",
+      "url": "https://webfry.in/careers",
+      "city": "lko",
+      "_why": "One of very few Lucknow dev shops in the tracker."
+    }
+  ]
+}
