@@ -1,6 +1,7 @@
 venv/
 __pycache__/
 *.pyc
+.DS_Store
 node_modules/
 .wrangler/
 .cf-credentials
