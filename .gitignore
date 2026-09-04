@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+node_modules/
+.wrangler/
+.cf-credentials
+.dev.vars
+scraped.json
+.secrets-generated.txt
+.push-credentials
+scrape.log
+dev*.log
+seed-data.sql
+.http-state.json

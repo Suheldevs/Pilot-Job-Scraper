@@ -1,0 +1,1679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Pilot — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+
+  :root{
+    /* surfaces + ink */
+    --bg:#f5f4f1; --panel:#fff; --panel2:#faf9f7; --panel3:#f2f1ed;
+    --ink:#15171c; --mute:#5b616b; --faint:#878d96;
+    --line:#e4e2dc; --line2:#eeece7;
+    /* accent + status */
+    --accent:#1d6b3f; --accent-soft:#e7f1ec; --accent-ink:#175733;
+    --blue:#0a66c2; --violet:#5b3fa8; --amber:#8a6100; --green:#1f8a4c; --red:#a3271f;
+    --track:#eceae4;
+    /* elevation */
+    --shadow:0 1px 2px rgba(16,18,22,.04);
+    --shadow2:0 1px 3px rgba(16,18,22,.06), 0 4px 12px rgba(16,18,22,.04);
+    /* scale */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s7:32px;
+    --r1:8px; --r2:10px; --r3:14px;
+    --sidebar:224px;
+    --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --bg:#0e1014; --panel:#171a1f; --panel2:#13161a; --panel3:#1e2228;
+    --ink:#e8eaed; --mute:#98a0ab; --faint:#727981;
+    --line:#262b33; --line2:#20242b;
+    --accent:#5fbd88; --accent-soft:#17251d; --accent-ink:#6fc995;
+    --blue:#5aa9f0; --violet:#a992e8; --amber:#d7b45e; --green:#4cc47c; --red:#e5837a;
+    --track:#232830;
+    --shadow:none; --shadow2:none;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0e1014; --panel:#171a1f; --panel2:#13161a; --panel3:#1e2228;
+    --ink:#e8eaed; --mute:#98a0ab; --faint:#727981;
+    --line:#262b33; --line2:#20242b;
+    --accent:#5fbd88; --accent-soft:#17251d; --accent-ink:#6fc995;
+    --blue:#5aa9f0; --violet:#a992e8; --amber:#d7b45e; --green:#4cc47c; --red:#e5837a;
+    --track:#232830;
+    --shadow:none; --shadow2:none;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);
+    font:14px/1.55 var(--font);
+    font-feature-settings:"cv11","ss01";
+    -webkit-text-size-adjust:100%;
+    -moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  button,input,textarea,select{font:inherit;color:inherit}
+  h1,h2,h3{margin:0;font-weight:640;letter-spacing:-.014em}
+  p{margin:0}
+  ::selection{background:var(--accent-soft)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+  /* ================= shell ================= */
+  .shell{display:grid;grid-template-columns:var(--sidebar) 1fr;min-height:100vh}
+
+  .side{background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+  .brand{padding:var(--s5) var(--s4) var(--s4);border-bottom:1px solid var(--line2)}
+  .brand b{display:block;font-size:15px;font-weight:660;letter-spacing:-.02em}
+  .brand span{display:block;color:var(--faint);font-size:11.5px;margin-top:3px;letter-spacing:0}
+  nav{padding:var(--s3) var(--s2);display:flex;flex-direction:column;gap:2px}
+  .nav{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;
+    border-radius:var(--r1);padding:0 10px;height:36px;cursor:pointer;text-align:left;
+    color:var(--mute);font-size:13.5px;font-weight:500;position:relative}
+  .nav:hover{background:var(--panel3);color:var(--ink)}
+  .nav.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+  .nav .ic{width:15px;text-align:center;flex:none;font-size:12.5px;opacity:.85}
+  .nav .badge{margin-left:auto;font-size:11px;font-weight:500;color:var(--faint);
+    font-variant-numeric:tabular-nums}
+  .nav.on .badge{color:var(--accent-ink);opacity:.75}
+  .sidefoot{margin-top:auto;padding:var(--s4);border-top:1px solid var(--line2);
+    font-size:11.5px;color:var(--faint);line-height:1.6}
+  .sidefoot a{color:var(--mute);text-decoration:none}
+  .sidefoot a:hover{color:var(--ink);text-decoration:underline}
+
+  .main{min-width:0;display:flex;flex-direction:column}
+  .top{position:sticky;top:0;z-index:20;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:saturate(180%) blur(8px);
+    border-bottom:1px solid var(--line);
+    padding:0 var(--s6);height:56px;
+    display:flex;align-items:center;gap:var(--s3)}
+  .top h1{font-size:15.5px;font-weight:620;flex:none}
+  .top .spacer{flex:1}
+  .content{padding:var(--s6);max-width:1160px;width:100%}
+  @media(min-width:1400px){ .content{padding:var(--s7) var(--s6)} }
+
+  /* ================= page header ================= */
+  .phead{margin-bottom:var(--s5)}
+  .phead h2{font-size:20px;font-weight:660;letter-spacing:-.02em}
+  .phead p{color:var(--mute);font-size:13px;margin-top:var(--s1);max-width:64ch}
+
+  /* vertical rhythm: sections in a view are evenly spaced, no inline margins */
+  .stack{display:flex;flex-direction:column;gap:var(--s4)}
+
+  /* ================= primitives ================= */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r3);
+    box-shadow:var(--shadow);display:flex;flex-direction:column;min-width:0}
+  .card-hd{display:flex;align-items:center;gap:var(--s3);
+    padding:var(--s4) var(--s5);border-bottom:1px solid var(--line2);min-height:50px}
+  .card-hd h3{font-size:13px;font-weight:620;letter-spacing:-.005em}
+  .card-hd .meta{margin-left:auto;font-size:11.5px;color:var(--faint);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .card-bd{padding:var(--s5);flex:1;min-width:0}
+  .card-bd.tight{padding:var(--s4) var(--s5)}
+  .card-bd.flush{padding:0}
+
+  .grid{display:grid;gap:var(--s4);align-items:stretch}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  @media(max-width:1080px){ .g4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media(max-width:900px){ .g3,.g2{grid-template-columns:minmax(0,1fr)} }
+  @media(max-width:560px){ .g4{grid-template-columns:minmax(0,1fr)} }
+
+  .row{display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center}
+  .row.tight{gap:var(--s1)}
+
+  .btn{background:var(--panel);border:1px solid var(--line);border-radius:var(--r1);
+    padding:0 11px;height:34px;font-size:12.5px;font-weight:500;cursor:pointer;
+    text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+    white-space:nowrap;transition:border-color .12s,background .12s}
+  .btn:hover{border-color:var(--mute);background:var(--panel2)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:580}
+  .btn.primary:hover{background:var(--accent);filter:brightness(1.08)}
+  .btn.hr{background:var(--accent-soft);border-color:transparent;color:var(--accent-ink);font-weight:580}
+  .btn.wa{background:var(--green);border-color:transparent;color:#fff;font-weight:580}
+  .btn.li{background:var(--blue);border-color:transparent;color:#fff;font-weight:580}
+  .btn.sm{height:30px;padding:0 9px;font-size:12px}
+  .btn.ghost{background:none;border-color:transparent;color:var(--mute)}
+  .btn.ghost:hover{background:var(--panel3);color:var(--ink);border-color:transparent}
+  /* Destructive actions read as destructive before they're clicked, not only
+     in the confirm dialog. */
+  .btn.danger{color:var(--red);border-color:var(--line)}
+  .btn.danger:hover{border-color:var(--red);background:var(--panel2)}
+
+  input.f,textarea.f,select.f{width:100%;background:var(--panel2);
+    border:1px solid var(--line);border-radius:var(--r1);
+    padding:0 11px;height:38px;font-size:13.5px}
+  textarea.f{min-height:112px;padding:10px 11px;height:auto;resize:vertical;line-height:1.6}
+  select.f{padding-right:8px}
+  input.f::placeholder,textarea.f::placeholder{color:var(--faint)}
+  input.f:focus,textarea.f:focus,select.f:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft)}
+  label.lb{display:block;font-size:11.5px;color:var(--mute);margin-bottom:6px;font-weight:560}
+  .field{min-width:0}
+
+  /* ================= stat tiles ================= */
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r3);
+    padding:var(--s4) var(--s5);box-shadow:var(--shadow);
+    display:flex;flex-direction:column;justify-content:center;min-height:96px}
+  .tile .k{font-size:11.5px;color:var(--mute);font-weight:560;letter-spacing:.01em}
+  .tile .v{font-size:28px;font-weight:660;letter-spacing:-.03em;margin-top:6px;
+    font-variant-numeric:tabular-nums;line-height:1.05}
+  .tile .m{font-size:11.5px;color:var(--faint);margin-top:5px}
+
+  /* ================= charts ================= */
+  .chart{display:flex;flex-direction:column;gap:2px}
+  .barrow{display:grid;grid-template-columns:minmax(84px,116px) 1fr 52px;
+    align-items:center;gap:var(--s3);padding:5px 0;font-size:12.5px}
+  .barrow .lbl{color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bartrack{background:var(--track);border-radius:5px;height:18px;overflow:hidden}
+  .barfill{height:100%;border-radius:5px;background:var(--accent);min-width:3px;
+    transition:width .2s ease}
+  .barrow .num{text-align:right;font-variant-numeric:tabular-nums;
+    font-weight:580;font-size:12.5px}
+  .barrow:hover .lbl{color:var(--ink)}
+
+  .spark{display:flex;align-items:flex-end;gap:2px;height:84px}
+  .spark i{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:3px;
+    display:block;opacity:.9}
+  .spark i:hover{opacity:1;filter:brightness(1.15)}
+  .sparkx{display:flex;justify-content:space-between;color:var(--faint);
+    font-size:11px;margin-top:var(--s2);font-variant-numeric:tabular-nums}
+
+  /* ================= pipeline ================= */
+  .toolbar{display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center}
+  .search{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--r1);padding:0 12px;height:36px;font-size:13.5px}
+  .search::placeholder{color:var(--faint)}
+  .search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+  .tabs{display:flex;gap:var(--s1);overflow-x:auto;scrollbar-width:none;
+    background:var(--panel3);border-radius:var(--r2);padding:3px;width:fit-content;max-width:100%}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{background:none;border:none;color:var(--mute);border-radius:7px;
+    padding:0 12px;height:32px;font-size:13px;font-weight:530;cursor:pointer;
+    white-space:nowrap;flex:none;display:inline-flex;align-items:center;gap:6px}
+  .tab:hover{color:var(--ink)}
+  .tab.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:var(--shadow)}
+  .tab .n{font-weight:500;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .tab.on .n{color:var(--mute)}
+
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:var(--panel);border:1px solid var(--line);color:var(--mute);
+    border-radius:99px;padding:0 11px;height:30px;font-size:12px;cursor:pointer;
+    display:inline-flex;align-items:center}
+  .chip:hover{border-color:var(--mute);color:var(--ink)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:560}
+
+  .seclabel{display:flex;align-items:center;gap:var(--s3);margin:var(--s5) 0 var(--s3)}
+  .seclabel h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.075em;
+    color:var(--faint);font-weight:620}
+  .seclabel .ct{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;
+    background:var(--panel3);border-radius:99px;padding:1px 7px}
+  .seclabel .ln{flex:1;height:1px;background:var(--line2)}
+  .seclabel:first-child{margin-top:0}
+
+  .co{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line);
+    border-radius:var(--r2);padding:var(--s4) var(--s5);margin-bottom:var(--s2);
+    box-shadow:var(--shadow)}
+  .co[data-stage="contacted"]{border-left-color:var(--blue)}
+  .co[data-stage="replied"]{border-left-color:var(--violet)}
+  .co[data-stage="interviewing"]{border-left-color:var(--amber)}
+  .co[data-stage="offer"]{border-left-color:var(--green)}
+  .co[data-stage="rejected"]{border-left-color:var(--red);opacity:.6}
+  .co:hover{box-shadow:var(--shadow2)}
+  .co .hd{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+  .co .nm{font-weight:620;font-size:14.5px;letter-spacing:-.012em}
+  .co .tag{font-size:11px;color:var(--faint);background:var(--panel3);
+    border-radius:99px;padding:1px 8px;font-weight:500}
+  .co .meta{margin-left:auto;font-size:11.5px;color:var(--faint);white-space:nowrap}
+  .co .note{color:var(--mute);font-size:12.5px;margin-top:5px;line-height:1.5}
+  .co .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:var(--s3)}
+  .stagebar{display:flex;gap:4px;flex-wrap:wrap;margin-top:var(--s3);
+    padding-top:var(--s3);border-top:1px solid var(--line2)}
+  .sb{background:none;border:1px solid var(--line);border-radius:7px;
+    padding:0 9px;height:28px;font-size:11.5px;cursor:pointer;color:var(--mute)}
+  .sb:hover{border-color:var(--mute);color:var(--ink)}
+  .sb.on{color:#fff;font-weight:580;border-color:transparent}
+  .sb.on[data-s="contacted"]{background:var(--blue)}
+  .sb.on[data-s="replied"]{background:var(--violet)}
+  .sb.on[data-s="interviewing"]{background:var(--amber)}
+  .sb.on[data-s="offer"]{background:var(--green)}
+  .sb.on[data-s="rejected"]{background:var(--red)}
+  .sb.on[data-s="none"]{background:var(--mute)}
+  .fu{color:var(--amber);font-size:11px;font-weight:600;
+    background:var(--panel3);border-radius:99px;padding:1px 8px}
+
+  /* ---- tag 2: lead strength (grade) ---- */
+  .gtag{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:560;
+    border-radius:99px;padding:1px 4px 1px 2px;cursor:help;
+    border:1px solid var(--line);color:var(--mute);background:var(--panel)}
+  .gtag b{display:inline-flex;align-items:center;justify-content:center;
+    width:16px;height:16px;border-radius:50%;font-size:10px;font-weight:700;color:#fff}
+  .gtag i{font-style:normal;font-variant-numeric:tabular-nums;color:var(--faint);
+    font-size:10px;padding-right:3px}
+  .gtag[data-g="A"]{border-color:var(--green);color:var(--green)}
+  .gtag[data-g="A"] b{background:var(--green)}
+  .gtag[data-g="B"]{border-color:var(--blue);color:var(--blue)}
+  .gtag[data-g="B"] b{background:var(--blue)}
+  .gtag[data-g="C"]{border-color:var(--amber);color:var(--amber)}
+  .gtag[data-g="C"] b{background:var(--amber)}
+  .gtag[data-g="D"]{border-color:var(--line);color:var(--faint)}
+  .gtag[data-g="D"] b{background:var(--faint)}
+
+  /* ---- tag 1: provenance (platform) ---- */
+  .ptag{font-size:10.5px;font-weight:530;border-radius:99px;padding:2px 8px;
+    cursor:help;background:var(--panel3);color:var(--mute);border:1px solid transparent}
+  .ptag[data-t="ats"]{background:var(--accent-soft);color:var(--accent-ink);
+    border-color:var(--accent);font-weight:600}
+  .ptag[data-t="direct"]{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+  .ptag[data-t="extension"]{background:var(--accent-soft);color:var(--accent-ink)}
+  .ptag[data-t="search"]{color:var(--faint)}
+
+  .sortsel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r1);
+    height:36px;padding:0 8px;font-size:12.5px;color:var(--mute);flex:none}
+  .sortsel:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+  /* ================= misc ================= */
+  .empty{color:var(--mute);text-align:center;padding:var(--s7) var(--s5);font-size:13px;
+    border:1px dashed var(--line);border-radius:var(--r3);background:var(--panel2)}
+  .empty b{display:block;color:var(--ink);font-weight:600;margin-bottom:var(--s1)}
+  .hint{color:var(--faint);font-size:11.5px;line-height:1.6}
+  .hint code,.mono{font-family:var(--mono);background:var(--panel3);
+    border-radius:4px;padding:1.5px 5px;font-size:11px}
+  .rules{color:var(--mute);font-size:12.5px;line-height:1.8}
+  .codeblock{font-family:var(--mono);font-size:12px;color:var(--ink);
+    background:var(--panel3);border:1px solid var(--line2);border-radius:var(--r1);
+    padding:10px 12px;overflow-x:auto;white-space:pre;line-height:1.5}
+
+  .scrollx{overflow-x:auto;max-width:100%}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:9px var(--s3);border-bottom:1px solid var(--line2);
+    white-space:nowrap}
+  th{color:var(--faint);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.06em;font-weight:620;background:var(--panel2)}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--panel2)}
+  td.strong{font-weight:580}
+
+  .toast{position:fixed;left:50%;bottom:var(--s6);transform:translate(-50%,14px);
+    background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:var(--r2);
+    font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:.18s;
+    z-index:80;max-width:88vw;box-shadow:var(--shadow2)}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  .hide{display:none!important}
+  .loading{color:var(--faint);font-size:13px;padding:var(--s7);text-align:center}
+
+  /* Spacing utilities, on the scale. These exist so views stop reaching for
+     inline margins — an inline "margin-top:10px" is off the 4/8/12/16/20/24
+     scale and is how vertical rhythm drifts card to card. */
+  .mt2{margin-top:var(--s2)}
+  .mt3{margin-top:var(--s3)}
+  .mt4{margin-top:var(--s4)}
+  .mt5{margin-top:var(--s5)}
+  .mb2{margin-bottom:var(--s2)}
+  .mb3{margin-bottom:var(--s3)}
+  .mb4{margin-bottom:var(--s4)}
+  .m0{margin:0}
+  /* A number input sized to its content instead of stretching to 100%. */
+  .w-num{width:76px;flex:none}
+  /* Table cells that hold prose, not labels — these are the only ones allowed
+     to wrap, since everything else relies on nowrap for column alignment. */
+  td.wrap{white-space:normal;min-width:220px}
+  .selfstart{align-self:flex-start}
+
+  @media(max-width:860px){
+    .shell{grid-template-columns:1fr}
+    .side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+    .brand{padding:var(--s4)}
+    nav{flex-direction:row;overflow-x:auto;padding:var(--s2);gap:var(--s1)}
+    .nav{width:auto;flex:none}
+    .nav .badge{display:none}
+    .sidefoot{display:none}
+    .content{padding:var(--s4)}
+    .top{padding:0 var(--s4);height:52px}
+    .phead h2{font-size:18px}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <b id="brand-name">Pilot</b>
+      <span id="brand-sub"></span>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidefoot" id="sidefoot"></div>
+  </aside>
+
+  <div class="main">
+    <div class="top">
+      <h1 id="page-title">Overview</h1>
+      <span class="spacer"></span>
+      <button class="btn sm ghost" id="theme" title="Theme">◐ Auto</button>
+      <a class="btn sm ghost" href="/api/logout">Sign out</a>
+    </div>
+    <div class="content" id="content">
+      <div class="loading">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ me --- */
+const ME = {
+  name:    "Mohd Suhel",
+  role:    "Full-stack developer (React / Node)",
+  years:   "2",
+  company: "Jamtech Technologies",
+  stack:   "React, Next.js, React Native, Node, Express, MongoDB",
+  target:  "Full-stack / MERN / AI-integrated, 1–3 yr band",
+  email:   "mohdsuhel.dev@gmail.com",
+  phone:   "919519838720",
+  linkedin:"https://www.linkedin.com/in/mohd-suhel-4b2072257",
+  github:  "https://github.com/Suheldevs",
+  folio:   "https://mohdsuhel.netlify.app/",
+  resume:  "https://drive.google.com/file/d/1_-uaMxN4XP4evy416qIrA0HlUv5YKWti/view?usp=sharing",
+  notice:  "30 days"
+};
+
+const DEFAULT_TPL =
+"Hello, I am {name} — a full-stack developer with {years} years' experience, currently at " +
+"Jamtech Technologies. I work on AI-integrated systems: AI workflows, agent pipelines and " +
+"vector-search features, built on React / Next.js / Node. I wanted to check if {company} has " +
+"an opening for a full-stack or AI-focused developer. May I send my resume here?";
+
+const SUBJECT = "Full-stack / AI developer (2 yrs, React · Node) — application";
+
+/* WhatsApp is read on a phone, usually by someone who did not ask to hear
+   from you — so it is short, leads with the ask, and never pastes a CV. */
+const DEFAULT_WA =
+"Hi, I am {name} — a full-stack developer ({years} yrs, React / Node), currently at " +
+"Jamtech Technologies. Does {company} have an opening for a full-stack or AI-focused " +
+"developer? Happy to send my CV if useful.";
+
+/* LinkedIn connection notes are capped near 300 characters, so this has to be
+   tighter still. */
+const DEFAULT_LI =
+"Hi, I am {name}, a full-stack developer ({years} yrs, React / Node) at Jamtech " +
+"Technologies. I work on AI-integrated systems. Would you be open to a quick chat " +
+"about full-stack roles at {company}?";
+
+const TABS = [["blr","Bangalore"],["pune","Pune"],["lko","Lucknow"],["noida","Noida / NCR"],["rem","Remote"]];
+const TAB_LABEL = Object.fromEntries(TABS);
+const SECTIONS = {
+  blr:  [["s1","Real HR inbox — email these properly"],
+         ["s2","WhatsApp them"],
+         ["s3","Outside Bangalore — but real HR inbox"]],
+  pune: [["p1","Real HR inbox — email these properly"],
+         ["p2","Live opening right now, or WhatsApp them"],
+         ["p3","Email / LinkedIn only"]],
+  lko:  [["l1","Real HR inbox — email these properly"],
+         ["l2","WhatsApp them"],
+         ["l3","Email / LinkedIn only"]],
+  noida:[["n1","Real HR inbox — email these properly"],
+         ["n2","Phone / LinkedIn only"]],
+  rem:  [["r1","Remote-friendly — LinkedIn first"]]
+};
+const STAGES = [
+  ["none","Not contacted"],["contacted","Contacted"],["replied","Replied"],
+  ["interviewing","Interviewing"],["offer","Offer"],["rejected","Rejected"]
+];
+const STAGE_LABEL = Object.fromEntries(STAGES);
+const STAGE_VAR = { contacted:"--blue", replied:"--violet", interviewing:"--amber",
+                    offer:"--green", rejected:"--red", none:"--mute" };
+
+/* --- the two tags -------------------------------------------------------- */
+/* Tag 1: where the lead came from. Ordered best-evidence first — an ATS board
+   is the company's own hiring system, an aggregator re-publishes, a search
+   scrape is the loosest. */
+const PLATFORMS = [
+  ["greenhouse",     "Greenhouse", "ats"],
+  ["lever",          "Lever",      "ats"],
+  ["ashby",          "Ashby",      "ats"],
+  ["keka",           "Keka",       "ats"],
+  ["hackernews",     "HN hiring",  "direct"],
+  ["remotive",       "Remotive",   "aggregator"],
+  ["arbeitnow",      "Arbeitnow",  "aggregator"],
+  ["remoteok",       "RemoteOK",   "aggregator"],
+  ["weworkremotely", "WWR",        "aggregator"],
+  ["instahyre",      "Instahyre",  "aggregator"],
+  ["linkedin",       "LinkedIn",   "search"],
+  ["naukri",         "Naukri",     "search"],
+  ["firecrawl",      "Careers page", "search"],
+  ["extension",      "Grabbed",    "extension"],
+  ["manual",         "By hand",    "manual"],
+];
+const PLATFORM_LABEL = Object.fromEntries(PLATFORMS.map(p => [p[0], p[1]]));
+const PLATFORM_TIER  = Object.fromEntries(PLATFORMS.map(p => [p[0], p[2]]));
+
+/* Tag 2: how strong the lead is — genuinity x match. */
+const GRADES = [
+  ["A", "Apply now",       "--green"],
+  ["B", "Worth applying",  "--blue"],
+  ["C", "Maybe",           "--amber"],
+  ["D", "Skip",            "--red"],
+];
+const GRADE_LABEL = Object.fromEntries(GRADES.map(g => [g[0], g[1]]));
+const GRADE_VAR   = Object.fromEntries(GRADES.map(g => [g[0], g[2]]));
+
+/* --------------------------------------------------------------- state --- */
+let COMPANIES = [];         // all companies, with stage joined
+let STATS = null;           // /api/analytics payload
+/* Per-channel templates. WhatsApp has to be short and has no subject line;
+   email can be longer and needs one. Sending the same text down both was the
+   old behaviour and it made the WhatsApp messages read like emails. */
+let TPL = DEFAULT_TPL;                       // kept: the email body
+let TPLS = {
+  email:    { subject: SUBJECT, body: DEFAULT_TPL },
+  whatsapp: { body: DEFAULT_WA },
+  linkedin: { body: DEFAULT_LI },
+};
+let TPL_MIGRATED = false;
+let VIEW = localStorage.getItem("jo:view") || "overview";
+let TAB = localStorage.getItem("jo:tab") || "blr";
+let SORT = localStorage.getItem("jo:sort") || "grade";
+let query = "";
+const active = new Set();
+
+const FILTERS = [
+  ["A",    "Grade A",        (c) => c.grade === "A"],
+  ["AB",   "A or B",         (c) => c.grade === "A" || c.grade === "B"],
+  ["ats",  "Company board",  (c) => ["ats","direct"].includes(PLATFORM_TIER[c.platform])],
+  ["todo", "Not contacted",  (c) => c.stage === "none"],
+  ["fu",   "Needs follow-up",(c) => needsFollowUp(c)],
+  ["hr",   "Has HR inbox",   (c) => (c.hr||[]).length > 0],
+  ["wa",   "Has WhatsApp",   (c) => (c.wa||[]).length > 0],
+  ["job",  "Live opening",   (c) => !!c.job],
+];
+
+const SORTS = [
+  ["grade", "Best leads first"],
+  ["fresh", "Newest posting"],
+  ["name",  "A–Z"],
+];
+
+function sortCompanies(list){
+  const copy = list.slice();
+  if(SORT === "grade"){
+    // Ungraded rows (the hand-researched seed set) sort after graded ones
+    // rather than being treated as zero-score leads.
+    copy.sort((a,b) => (b.score||0) - (a.score||0) || a.n.localeCompare(b.n));
+  } else if(SORT === "fresh"){
+    copy.sort((a,b) => (b.posted_at||b.created_at||0) - (a.posted_at||a.created_at||0));
+  } else {
+    copy.sort((a,b) => a.n.localeCompare(b.n));
+  }
+  return copy;
+}
+
+/* ------------------------------------------------------------- helpers --- */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) =>
+  ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+
+function needsFollowUp(c){
+  return c.stage === "contacted" && c.stage_at && (Date.now() - c.stage_at) > 7*86400000;
+}
+function ago(ts){
+  if(!ts) return "";
+  const d = Math.floor((Date.now()-ts)/86400000);
+  if(d <= 0) return "today";
+  if(d === 1) return "yesterday";
+  if(d < 30) return d+"d ago";
+  return Math.floor(d/30)+"mo ago";
+}
+function pretty(w){
+  const d = String(w).replace(/\D/g,"");
+  return d.length === 12 ? "+91 "+d.slice(2,7)+" "+d.slice(7) : "+"+d;
+}
+function fill(tplStr, companyName){
+  return tplStr
+    .replace(/\{company\}/g, companyName)
+    .replace(/\{name\}/g,    ME.name)
+    .replace(/\{role\}/g,    ME.role)
+    .replace(/\{years\}/g,   ME.years)
+    .replace(/\{stack\}/g,   ME.stack);
+}
+let toastTimer = null;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+function copy(text, label){
+  navigator.clipboard?.writeText(text).then(
+    () => toast(label+" copied"),
+    () => toast("Copy failed — select it manually")
+  );
+}
+
+/* ----------------------------------------------------------------- api --- */
+async function api(path, options = {}){
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    ...options,
+  });
+  if(res.status === 401){ location.reload(); throw new Error("unauthorized"); }
+  if(!res.ok){
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || ("HTTP "+res.status));
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function loadAll(){
+  const [companies, stats, tpls] = await Promise.all([
+    api("/api/companies"),
+    api("/api/analytics"),
+    // Templates are non-critical: if that endpoint is unavailable the
+    // dashboard should still render with the built-in defaults.
+    api("/api/templates").catch(() => null),
+  ]);
+  COMPANIES = companies;
+  STATS = stats;
+  if(tpls){
+    TPLS = {
+      email:    { subject: tpls.email?.subject || SUBJECT,
+                  body:    tpls.email?.body    || DEFAULT_TPL },
+      whatsapp: { body: tpls.whatsapp?.body || DEFAULT_WA },
+      linkedin: { body: tpls.linkedin?.body || DEFAULT_LI },
+    };
+    TPL_MIGRATED = Boolean(tpls.migrated);
+  }
+  TPL = TPLS.email.body;
+}
+
+/* ---------------------------------------------------------------- nav ---- */
+const VIEWS = [
+  ["overview",  "Overview",  "▦"],
+  ["pipeline",  "Pipeline",  "☰"],
+  ["analytics", "Analytics", "◔"],
+  ["message",   "Message",   "✎"],
+  ["events",    "Events",    "⚡"],
+  ["data",      "Data",      "⇅"],
+];
+
+function renderNav(){
+  const host = $("nav");
+  host.textContent = "";
+  for(const [key,label,icon] of VIEWS){
+    const b = document.createElement("button");
+    b.className = "nav"+(key === VIEW ? " on" : "");
+    b.innerHTML = `<span class="ic">${icon}</span><span>${label}</span>`;
+    if(key === "pipeline"){
+      const n = document.createElement("span");
+      n.className = "badge";
+      n.textContent = COMPANIES.length;
+      b.append(n);
+    }
+    b.addEventListener("click", () => { VIEW = key; localStorage.setItem("jo:view", key); render(); });
+    host.append(b);
+  }
+
+  $("brand-sub").textContent = ME.name+" · "+ME.years+" yrs";
+  $("sidefoot").innerHTML =
+    `${esc(ME.role)}<br>${esc(ME.target)}<br>Notice: ${esc(ME.notice)}<br>` +
+    `<a href="${esc(ME.folio)}" target="_blank" rel="noopener">Portfolio</a> · ` +
+    `<a href="${esc(ME.resume)}" target="_blank" rel="noopener">Resume</a>`;
+}
+
+/* -------------------------------------------------------------- charts --- */
+/** Horizontal bars, single hue — magnitude only. Value is direct-labelled,
+ *  so identity never depends on colour. */
+function barChart(rows, opts = {}){
+  const max = Math.max(1, ...rows.map(r => r.value));
+  const wrap = document.createElement("div");
+  wrap.className = "chart";
+  for(const r of rows){
+    const pct = (r.value / max) * 100;
+    const row = document.createElement("div");
+    row.className = "barrow";
+    row.title = `${r.label}: ${r.value}${opts.suffix || ""}`;
+    row.innerHTML =
+      `<span class="lbl">${esc(r.label)}</span>` +
+      `<span class="bartrack"><span class="barfill" style="width:${pct}%${r.color ? `;background:var(${r.color})` : ""}"></span></span>` +
+      `<span class="num">${r.value}${opts.suffix || ""}</span>`;
+    wrap.append(row);
+  }
+  return wrap;
+}
+
+/** 60-day activity — discrete daily counts, so bars not a line. */
+function sparkChart(timeline){
+  const byDay = new Map();
+  for(const row of timeline) byDay.set(row.day, (byDay.get(row.day) || 0) + row.count);
+
+  const days = [];
+  for(let i = 59; i >= 0; i--){
+    const d = new Date(Date.now() - i*86400000).toISOString().slice(0,10);
+    days.push([d, byDay.get(d) || 0]);
+  }
+  const max = Math.max(1, ...days.map(d => d[1]));
+
+  const wrap = document.createElement("div");
+  const bars = document.createElement("div");
+  bars.className = "spark";
+  for(const [day,n] of days){
+    const i = document.createElement("i");
+    i.style.height = Math.max(2, (n/max)*100) + "%";
+    if(!n) i.style.opacity = ".18";
+    i.title = `${day}: ${n} update${n === 1 ? "" : "s"}`;
+    bars.append(i);
+  }
+  const x = document.createElement("div");
+  x.className = "sparkx";
+  x.innerHTML = `<span>${days[0][0]}</span><span>${days[days.length-1][0]}</span>`;
+  wrap.append(bars, x);
+  return wrap;
+}
+
+function tile(k, v, m){
+  const d = document.createElement("div");
+  d.className = "tile";
+  d.innerHTML = `<div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>` +
+                (m ? `<div class="m">${esc(m)}</div>` : "");
+  return d;
+}
+
+/** Card with a titled header and a padded body. Returns {card, body}. */
+function panel(title, meta, bodyClass){
+  const card = document.createElement("div");
+  card.className = "card";
+  const hd = document.createElement("div");
+  hd.className = "card-hd";
+  hd.innerHTML = `<h3>${esc(title)}</h3>` + (meta ? `<span class="meta">${esc(meta)}</span>` : "");
+  const body = document.createElement("div");
+  body.className = "card-bd" + (bodyClass ? " " + bodyClass : "");
+  card.append(hd, body);
+  return { card, body };
+}
+
+function pageHead(title, desc){
+  const d = document.createElement("div");
+  d.className = "phead";
+  d.innerHTML = `<h2>${esc(title)}</h2>` + (desc ? `<p>${esc(desc)}</p>` : "");
+  return d;
+}
+
+function stack(){
+  const d = document.createElement("div");
+  d.className = "stack";
+  return d;
+}
+
+function funnelRows(){
+  return STAGES.map(([k,label]) => ({
+    label,
+    value: STATS.by_stage.find(r => r.stage === k)?.count || 0,
+    color: STAGE_VAR[k],
+  }));
+}
+
+/* ------------------------------------------------------------ overview --- */
+function viewOverview(host){
+  const t = STATS.totals;
+  const contacted = t.companies - t.none;
+  const fu = COMPANIES.filter(needsFollowUp).length;
+
+  host.append(pageHead("Overview",
+    "Where the whole pipeline stands right now — across every city you're tracking."));
+
+  const s = stack();
+
+  const tiles = document.createElement("div");
+  tiles.className = "grid g4";
+  tiles.append(
+    tile("Companies", t.companies, `across ${STATS.by_tab.length} cities`),
+    tile("Contacted", contacted, `${t.none} still to reach`),
+    tile("Response rate", STATS.response_rate + "%", `${t.replied + t.interviewing + t.offer} replied or better`),
+    tile("Need follow-up", fu, "contacted 7+ days ago"),
+  );
+  s.append(tiles);
+
+  const two = document.createElement("div");
+  two.className = "grid g2";
+
+  const f = panel("Pipeline funnel", t.companies + " total");
+  f.body.append(barChart(funnelRows()));
+  f.body.insertAdjacentHTML("beforeend",
+    `<p class="hint mt3">Every stage is named and counted — colour repeats the label, it never carries it alone.</p>`);
+
+  const c = panel("By city");
+  c.body.append(barChart(TABS.map(([k,label]) => ({
+    label, value: STATS.by_tab.find(r => r.tab === k)?.total || 0,
+  }))));
+
+  two.append(f.card, c.card);
+  s.append(two);
+
+  const a = panel("Activity", "last 60 days");
+  a.body.append(sparkChart(STATS.timeline));
+  s.append(a.card);
+
+  host.append(s);
+}
+
+/* ----------------------------------------------------------- analytics --- */
+function viewAnalytics(host){
+  const t = STATS.totals;
+  const contacted = t.companies - t.none;
+
+  host.append(pageHead("Analytics",
+    "How the outreach is actually converting — by stage, by city, and by where each company came from."));
+
+  const s = stack();
+
+  const tiles = document.createElement("div");
+  tiles.className = "grid g4";
+  tiles.append(
+    tile("Reached out", contacted, `of ${t.companies} companies`),
+    tile("Replied", t.replied, contacted ? Math.round(t.replied/contacted*100)+"% of contacted" : "nothing sent yet"),
+    tile("Interviewing", t.interviewing, "active conversations"),
+    tile("Offers", t.offer, t.rejected + " rejected"),
+  );
+  s.append(tiles);
+
+  const two = document.createElement("div");
+  two.className = "grid g2";
+
+  const f = panel("Stage funnel");
+  f.body.append(barChart(funnelRows()));
+
+  const src = panel("Where companies came from");
+  const srcRows = STATS.by_source.map(r => ({ label: sourceLabel(r.source), value: r.count }));
+  src.body.append(barChart(srcRows.length ? srcRows : [{ label:"Nothing yet", value:0 }]));
+  if(STATS.by_scraped_from.length){
+    src.body.insertAdjacentHTML("beforeend",
+      `<div class="seclabel"><h3>Scraper source</h3><span class="ln"></span></div>`);
+    src.body.append(barChart(STATS.by_scraped_from.map(r => ({ label: r.scraped_from, value: r.count }))));
+  }
+
+  two.append(f.card, src.card);
+  s.append(two);
+
+  // Does the grading actually predict replies? This is the honest check on it.
+  const graded = (STATS.by_grade || []).filter(r => r.total > 0);
+  if(graded.length){
+    const two2 = document.createElement("div");
+    two2.className = "grid g2";
+
+    const g = panel("Lead strength", "tag 2");
+    g.body.append(barChart(GRADES.map(([k,label]) => ({
+      label: k + " · " + label,
+      value: graded.find(r => r.grade === k)?.total || 0,
+      color: GRADE_VAR[k],
+    }))));
+    g.body.insertAdjacentHTML("beforeend", `<div class="seclabel"><h3>Reply rate by grade</h3><span class="ln"></span></div>
+      <div class="scrollx"><table><thead><tr><th>Grade</th><th class="num">Total</th>
+        <th class="num">Contacted</th><th class="num">Replied+</th><th class="num">Rate</th></tr></thead>
+      <tbody>${GRADES.map(([k,label]) => {
+        const r = graded.find(x => x.grade === k);
+        if(!r) return "";
+        return `<tr><td class="strong">${k} · ${esc(label)}</td><td class="num">${r.total}</td>
+          <td class="num">${r.contacted}</td><td class="num">${r.responded}</td>
+          <td class="num">${r.contacted ? Math.round(r.responded/r.contacted*100)+"%" : "—"}</td></tr>`;
+      }).join("")}</tbody></table></div>
+      <p class="hint mt3">If A-grade leads don't reply more than C-grade ones,
+        the scoring weights need tuning — not your outreach.</p>`);
+
+    const pl = panel("Where leads came from", "tag 1");
+    pl.body.append(barChart((STATS.by_platform || []).map(r => ({
+      label: PLATFORM_LABEL[r.platform] || r.platform, value: r.count,
+    }))));
+    pl.body.insertAdjacentHTML("beforeend",
+      `<p class="hint mt3">ATS boards (Greenhouse, Lever, Ashby) are the
+        company's own hiring system — a listing there is verifiably real and open.</p>`);
+
+    two2.append(g.card, pl.card);
+    s.append(two2);
+  }
+
+  const a = panel("Activity", "last 60 days");
+  a.body.append(sparkChart(STATS.timeline));
+  s.append(a.card);
+
+  const tb = panel("City breakdown", null, "flush");
+  tb.body.innerHTML = `<div class="scrollx"><table>
+      <thead><tr><th>City</th><th class="num">Total</th><th class="num">Contacted</th>
+        <th class="num">Replied</th><th class="num">Interviewing</th><th class="num">Offer</th>
+        <th class="num">Rejected</th><th class="num">Reply %</th></tr></thead>
+      <tbody>${TABS.map(([k,label]) => {
+        const r = STATS.by_tab.find(x => x.tab === k) || {};
+        const c = r.contacted || 0;
+        const rep = (r.replied||0)+(r.interviewing||0)+(r.offer||0);
+        return `<tr><td class="strong">${esc(label)}</td><td class="num">${r.total||0}</td>
+          <td class="num">${c}</td><td class="num">${r.replied||0}</td>
+          <td class="num">${r.interviewing||0}</td><td class="num">${r.offer||0}</td>
+          <td class="num">${r.rejected||0}</td>
+          <td class="num">${c ? Math.round(rep/c*100)+"%" : "—"}</td></tr>`;
+      }).join("")}</tbody>
+    </table></div>`;
+  s.append(tb.card);
+
+  host.append(s);
+}
+
+function sourceLabel(s){
+  return { seed:"Researched by hand", scraped:"Scraper", manual:"Added manually", import:"Imported file" }[s] || s;
+}
+
+/* ------------------------------------------------------------ pipeline --- */
+function passes(c){
+  if(query){
+    const hay = (c.n+" "+(c.note||"")+" "+(c.hr||[]).join(" ")+" "+(c.em||[]).join(" ")).toLowerCase();
+    if(!hay.includes(query)) return false;
+  }
+  for(const [k,,test] of FILTERS) if(active.has(k) && !test(c)) return false;
+  return true;
+}
+
+function viewPipeline(host){
+  const inTab = COMPANIES.filter(c => c.tab === TAB);
+  const done = inTab.filter(c => c.stage !== "none").length;
+
+  host.append(pageHead("Pipeline",
+    "Every company, grouped by how good the contact route is. Work top-down — a real HR inbox beats a sales WhatsApp line."));
+
+  const s = stack();
+
+  // toolbar
+  const bar = document.createElement("div");
+  bar.className = "toolbar";
+  bar.innerHTML =
+    `<input class="search" id="q" type="search" placeholder="Search company, note or email…" value="${esc(query)}">` +
+    `<select class="sortsel" id="sortsel" aria-label="Sort">${
+      SORTS.map(([k,l]) => `<option value="${k}"${k === SORT ? " selected" : ""}>${esc(l)}</option>`).join("")
+    }</select>`;
+  const addBtn = document.createElement("button");
+  addBtn.className = "btn primary";
+  addBtn.textContent = "+ Add company";
+  addBtn.addEventListener("click", () => { VIEW = "add"; render(); });
+  bar.append(addBtn);
+  s.append(bar);
+
+  // city tabs
+  const tabHost = document.createElement("div");
+  tabHost.className = "tabs";
+  for(const [key,label] of TABS){
+    const n = COMPANIES.filter(c => c.tab === key).length;
+    const b = document.createElement("button");
+    b.className = "tab"+(key === TAB ? " on" : "");
+    b.innerHTML = `${esc(label)}<span class="n">${n}</span>`;
+    b.addEventListener("click", () => { TAB = key; localStorage.setItem("jo:tab", key); render(); });
+    tabHost.append(b);
+  }
+  s.append(tabHost);
+
+  // filter chips
+  const chipHost = document.createElement("div");
+  chipHost.className = "chips";
+  for(const [k,label] of FILTERS){
+    const b = document.createElement("button");
+    b.className = "chip"+(active.has(k) ? " on" : "");
+    b.textContent = label;
+    b.setAttribute("aria-pressed", String(active.has(k)));
+    b.addEventListener("click", () => { active.has(k) ? active.delete(k) : active.add(k); render(); });
+    chipHost.append(b);
+  }
+  s.append(chipHost);
+
+  // sections
+  const listHost = document.createElement("div");
+  let shown = 0;
+  for(const [sectionKey,title] of SECTIONS[TAB]){
+    const list = sortCompanies(inTab.filter(c => c.section === sectionKey).filter(passes));
+    if(!list.length) continue;
+    shown += list.length;
+    const h = document.createElement("div");
+    h.className = "seclabel";
+    h.innerHTML = `<h3>${esc(title)}</h3><span class="ct">${list.length}</span><span class="ln"></span>`;
+    listHost.append(h);
+    for(const c of list) listHost.append(companyCard(c));
+  }
+
+  if(!shown){
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.innerHTML = inTab.length === 0
+      ? `<b>Nothing in ${esc(TAB_LABEL[TAB])} yet</b>Add a company, or import a file from the Data tab.`
+      : `<b>No matches</b>Nothing in ${esc(TAB_LABEL[TAB])} fits this search and filter combination.`;
+    listHost.append(e);
+  }
+  s.append(listHost);
+  host.append(s);
+
+  $("page-title").textContent = "Pipeline · " + TAB_LABEL[TAB];
+
+  const q = $("q");
+  if(q){
+    q.addEventListener("input", () => {
+      query = q.value.trim().toLowerCase();
+      const pos = q.selectionStart;
+      render();
+      const nq = $("q");
+      if(nq){ nq.focus(); nq.setSelectionRange(pos, pos); }
+    });
+  }
+  const sel = $("sortsel");
+  if(sel){
+    sel.addEventListener("change", () => {
+      SORT = sel.value;
+      localStorage.setItem("jo:sort", SORT);
+      render();
+    });
+  }
+}
+
+/** Tag 2 — lead strength. Letter + label + score, never colour alone, and the
+ *  scoring reasons hang off the title so the number is always explainable. */
+function gradeTag(c){
+  if(!c.grade) return "";
+  const why = (c.reasons || []).join("\n");
+  return `<span class="gtag" data-g="${esc(c.grade)}" title="${esc(
+    GRADE_LABEL[c.grade] + " · " + c.score + "/100" + (why ? "\n\n" + why : ""))}">` +
+    `<b>${esc(c.grade)}</b>${esc(GRADE_LABEL[c.grade] || "")}` +
+    `<i>${c.score}</i></span>`;
+}
+
+/** Tag 1 — provenance. ATS boards get the emphasised style: a job on the
+ *  company's own board is verifiably real and open. */
+function platformTag(c){
+  const p = c.platform;
+  if(!p || p === "manual") return "";
+  const tier = PLATFORM_TIER[p] || "search";
+  return `<span class="ptag" data-t="${esc(tier)}" title="${esc(
+    tier === "ats" ? "From the company's own hiring board — verifiably real and open"
+    : tier === "direct" ? "Posted by the employer themselves — recruiters are barred from this thread"
+    : tier === "aggregator" ? "From a job aggregator's public API"
+    : tier === "extension" ? "Grabbed off a page you were logged into"
+    : "From a search or sitemap crawl — may be a repost or an agency")}">${esc(PLATFORM_LABEL[p] || p)}</span>`;
+}
+
+function companyCard(c){
+  const el = document.createElement("div");
+  el.className = "co";
+  el.dataset.stage = c.stage;
+
+  // Each channel gets its own text — that is the whole point of having three
+  // templates. WhatsApp links must not carry an email-length message.
+  const mailBody = fill(TPLS.email.body, c.n);
+  const mailSubject = fill(TPLS.email.subject || SUBJECT, c.n);
+  const waBody = fill(TPLS.whatsapp.body, c.n);
+  const liBody = fill(TPLS.linkedin.body, c.n);
+  const fu = needsFollowUp(c);
+
+  const head = document.createElement("div");
+  head.className = "hd";
+  head.innerHTML =
+    `<span class="nm">${esc(c.n)}</span>` + gradeTag(c) + platformTag(c) +
+    (fu ? `<span class="fu">↻ follow up</span>` : "") +
+    (c.stage !== "none"
+      ? `<span class="meta">${esc(STAGE_LABEL[c.stage])} · ${esc(ago(c.stage_at))}</span>` : "");
+  el.append(head);
+
+  if(c.note){
+    const n = document.createElement("p");
+    n.className = "note";
+    n.textContent = c.note;
+    el.append(n);
+  }
+
+  const acts = document.createElement("div");
+  acts.className = "acts";
+  for(const e of (c.hr||[])){
+    const a = document.createElement("a");
+    a.className = "btn sm hr";
+    a.href = "mailto:"+e+"?subject="+encodeURIComponent(mailSubject)+"&body="+encodeURIComponent(mailBody);
+    a.textContent = "HR " + e;
+    acts.append(a);
+  }
+  for(const w of (c.wa||[])){
+    const a = document.createElement("a");
+    a.className = "btn sm wa";
+    a.href = "https://wa.me/"+String(w).replace(/\D/g,"")+"?text="+encodeURIComponent(waBody);
+    a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "WhatsApp " + pretty(w);
+    acts.append(a);
+  }
+  for(const e of (c.em||[])){
+    const a = document.createElement("a");
+    a.className = "btn sm";
+    a.href = "mailto:"+e+"?subject="+encodeURIComponent(mailSubject)+"&body="+encodeURIComponent(mailBody);
+    a.textContent = e;
+    acts.append(a);
+  }
+  if(c.job){
+    const a = document.createElement("a");
+    a.className = "btn sm";
+    a.href = c.job.u; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "↗ " + (c.job.t || "Live opening");
+    acts.append(a);
+  }
+  if(c.li){
+    const a = document.createElement("a");
+    a.className = "btn sm li";
+    a.href = /^https?:/.test(c.li) ? c.li : "https://www.linkedin.com/company/"+c.li+"/people/";
+    a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "in LinkedIn · People";
+    acts.append(a);
+    const liCopy = document.createElement("button");
+    liCopy.className = "btn sm ghost";
+    liCopy.textContent = "Copy LinkedIn note";
+    // LinkedIn has no URL parameter for a connection note, so the only
+    // honest option is to hand it over for pasting.
+    liCopy.addEventListener("click", () => copy(liBody, "LinkedIn note for "+c.n));
+    acts.append(liCopy);
+  }
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "btn sm ghost";
+  copyBtn.textContent = "Copy email";
+  copyBtn.addEventListener("click", () => copy(mailBody, "Email for "+c.n));
+  acts.append(copyBtn);
+  el.append(acts);
+
+  const sbar = document.createElement("div");
+  sbar.className = "stagebar";
+  for(const [key,label] of STAGES){
+    const b = document.createElement("button");
+    b.className = "sb"+(c.stage === key ? " on" : "");
+    b.dataset.s = key;
+    b.textContent = label;
+    b.addEventListener("click", () => setStage(c, key));
+    sbar.append(b);
+  }
+  el.append(sbar);
+
+  const ta = document.createElement("textarea");
+  ta.className = "f";
+  ta.rows = 2;
+  ta.style.minHeight = "56px";
+  ta.style.marginTop = "12px";
+  ta.placeholder = "Notes — who you spoke to, what they said…";
+  ta.value = c.stage_note || "";
+  ta.setAttribute("aria-label", "Notes for "+c.n);
+  let noteTimer = null;
+  ta.addEventListener("input", () => {
+    c.stage_note = ta.value;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => saveProgress(c, { silent:true }), 700);
+  });
+  el.append(ta);
+
+  return el;
+}
+
+async function setStage(c, stage){
+  const prev = c.stage;
+  c.stage = stage;
+  c.stage_at = Date.now();
+  render();
+  try{
+    await saveProgress(c, { silent:true });
+    toast(c.n+" → "+STAGE_LABEL[stage]);
+    STATS = await api("/api/analytics");
+  }catch(e){
+    c.stage = prev;
+    render();
+    toast("Couldn't save: "+e.message);
+  }
+}
+
+async function saveProgress(c, { silent } = {}){
+  await api("/api/progress/"+encodeURIComponent(c.id), {
+    method: "PUT",
+    body: JSON.stringify({ stage: c.stage, note: c.stage_note || "" }),
+  });
+  if(!silent) toast("Saved");
+}
+
+/* ----------------------------------------------------------- add form --- */
+function viewAdd(host){
+  host.append(pageHead("Add a company",
+    "Contact tier is picked for you: an HR inbox lands in tier 1, WhatsApp or a live opening in tier 2, anything else in the last tier."));
+
+  const s = stack();
+
+  const back = document.createElement("button");
+  back.className = "btn sm ghost selfstart";
+  back.textContent = "← Back to pipeline";
+  back.addEventListener("click", () => { VIEW = "pipeline"; render(); });
+  s.append(back);
+
+  const p = panel("Company details");
+  p.body.innerHTML = `
+    <div class="grid g2">
+      <div class="field"><label class="lb">Company name *</label><input class="f" id="f-n" placeholder="Zethic Technologies"></div>
+      <div class="field"><label class="lb">City</label><select class="f" id="f-tab">
+        ${TABS.map(([k,l]) => `<option value="${k}"${k === TAB ? " selected" : ""}>${esc(l)}</option>`).join("")}
+      </select></div>
+      <div class="field"><label class="lb">HR email(s) — comma separated</label><input class="f" id="f-hr" placeholder="careers@company.com"></div>
+      <div class="field"><label class="lb">General email(s)</label><input class="f" id="f-em" placeholder="hello@company.com"></div>
+      <div class="field"><label class="lb">WhatsApp — digits with country code</label><input class="f" id="f-wa" placeholder="919611738802"></div>
+      <div class="field"><label class="lb">LinkedIn handle</label><input class="f" id="f-li" placeholder="zethic-tech"></div>
+      <div class="field"><label class="lb">Live opening URL</label><input class="f" id="f-ju" placeholder="https://…"></div>
+      <div class="field"><label class="lb">Opening title</label><input class="f" id="f-jt" placeholder="Full Stack Developer"></div>
+    </div>
+    <div class="field mt4"><label class="lb">Note — why they're worth contacting</label>
+      <input class="f" id="f-note" placeholder="Small team, good technical work"></div>
+    <div class="row mt5"><button class="btn primary" id="f-save">Add company</button></div>`;
+  s.append(p.card);
+  host.append(s);
+
+  $("f-save").addEventListener("click", async () => {
+    const name = $("f-n").value.trim();
+    if(!name){ toast("Company name is required"); $("f-n").focus(); return; }
+    const split = (id) => $(id).value.split(",").map(v => v.trim()).filter(Boolean);
+    try{
+      await api("/api/companies", {
+        method:"POST",
+        body: JSON.stringify({
+          name, tab: $("f-tab").value,
+          hr: split("f-hr"), em: split("f-em"),
+          wa: split("f-wa").map(w => w.replace(/\D/g,"")).filter(Boolean),
+          li: $("f-li").value.trim(),
+          note: $("f-note").value.trim(),
+          job_url: $("f-ju").value.trim(),
+          job_title: $("f-jt").value.trim(),
+          source: "manual",
+        }),
+      });
+      toast(name+" added");
+      TAB = $("f-tab").value;
+      localStorage.setItem("jo:tab", TAB);
+      await loadAll();
+      VIEW = "pipeline";
+      render();
+    }catch(e){ toast("Couldn't add: "+e.message); }
+  });
+}
+
+/* ------------------------------------------------------------ message --- */
+const CHANNELS = [
+  ["email",    "Email",    "Has a subject line and room to explain. Used by every HR and general-email button."],
+  ["whatsapp", "WhatsApp", "Read on a phone by someone who didn't ask to hear from you — keep it short and lead with the ask."],
+  ["linkedin", "LinkedIn", "Connection notes are capped near 300 characters, so this is the tightest of the three."],
+];
+let TPL_CHANNEL = localStorage.getItem("jo:channel") || "email";
+
+function viewMessage(host){
+  host.append(pageHead("Message",
+    "One template per channel, filled per company into the buttons on every card."));
+
+  const s = stack();
+
+  if(TPL_MIGRATED){
+    const note = document.createElement("div");
+    note.className = "empty" ; note.style.textAlign = "left";
+      note.innerHTML = `<b>Your old single template was carried over</b>` +
+      `It's been copied into all three channels so nothing was lost. Trim the WhatsApp ` +
+      `and LinkedIn versions down, then press Save on each — until you do, they're ` +
+      `email-length.`;
+    s.append(note);
+  }
+
+  // channel switcher
+  const seg = document.createElement("div");
+  seg.className = "tabs";
+  for(const [key,label] of CHANNELS){
+    const b = document.createElement("button");
+    b.className = "tab" + (key === TPL_CHANNEL ? " on" : "");
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      TPL_CHANNEL = key;
+      localStorage.setItem("jo:channel", key);
+      render();
+    });
+    seg.append(b);
+  }
+  s.append(seg);
+
+  const [, label, why] = CHANNELS.find(c => c[0] === TPL_CHANNEL) || CHANNELS[0];
+  const cur = TPLS[TPL_CHANNEL] || { body: "" };
+  const isEmail = TPL_CHANNEL === "email";
+
+  const p = panel(label + " template", isEmail ? "subject + body" : "body only");
+  p.body.innerHTML =
+    `<p class="hint mb4">${esc(why)}</p>` +
+    (isEmail
+      ? `<div class="field mb3"><label class="lb">Subject</label>
+           <input class="f" id="tpl-subject" value="${esc(cur.subject || "")}"></div>`
+      : "") +
+    `<label class="lb">Message</label>
+     <textarea class="f" id="tpl-body" spellcheck="false"></textarea>
+     <div class="row mt4">
+       <button class="btn primary" id="tpl-save">Save ${esc(label)}</button>
+       <button class="btn" id="tpl-copy">Copy</button>
+       <button class="btn ghost" id="tpl-reset">Reset to default</button>
+       <span class="hint" id="tpl-count"></span>
+     </div>
+     <p class="hint mt3">Tokens: <code>{company}</code> <code>{role}</code>
+       <code>{name}</code> <code>{years}</code> <code>{stack}</code></p>`;
+  s.append(p.card);
+
+  const pv = panel("Preview", "as Zethic Technologies would see it");
+  pv.body.innerHTML =
+    (isEmail ? `<p class="hint" id="pv-subject" class="mb3"></p>` : "") +
+    `<p class="rules" id="pv-body"></p>`;
+  s.append(pv.card);
+
+  const rl = panel("Ground rules");
+  rl.body.innerHTML = `<p class="rules">
+      Ask before sending the resume — don't open with an attachment.<br>
+      One message per company. No follow-up if there's no reply.<br>
+      Mon–Fri, 10am–6pm only.<br>
+      Most numbers are sales lines — if redirected, ask who handles hiring.
+    </p>`;
+  s.append(rl.card);
+
+  host.append(s);
+
+  const bodyBox = $("tpl-body");
+  bodyBox.value = cur.body || "";
+  const subjBox = $("tpl-subject");
+
+  const paint = () => {
+    const n = bodyBox.value.length;
+    // WhatsApp and LinkedIn have real practical ceilings; say so rather than
+    // silently letting the user write an essay that gets truncated.
+    const cap = TPL_CHANNEL === "linkedin" ? 300 : TPL_CHANNEL === "whatsapp" ? 700 : 0;
+    $("tpl-count").textContent = cap
+      ? `${n} / ${cap} characters` + (n > cap ? " — over the practical limit" : "")
+      : `${n} characters`;
+    $("tpl-count").style.color = cap && n > cap ? "var(--red)" : "";
+    $("pv-body").textContent = fill(bodyBox.value, "Zethic Technologies");
+    if(subjBox) $("pv-subject").textContent = "Subject: " + fill(subjBox.value, "Zethic Technologies");
+  };
+  bodyBox.addEventListener("input", paint);
+  if(subjBox) subjBox.addEventListener("input", paint);
+  paint();
+
+  $("tpl-save").addEventListener("click", async () => {
+    const payload = {};
+    payload[TPL_CHANNEL] = TPL_CHANNEL === "email"
+      ? { subject: subjBox.value, body: bodyBox.value }
+      : { body: bodyBox.value };
+    try{
+      await api("/api/templates", { method: "PUT", body: JSON.stringify(payload) });
+      TPLS[TPL_CHANNEL] = payload[TPL_CHANNEL];
+      if(TPL_CHANNEL === "email") TPL = bodyBox.value;
+      TPL_MIGRATED = false;
+      toast(label + " template saved");
+      render();
+    }catch(e){ toast("Couldn't save: " + e.message); }
+  });
+  $("tpl-copy").addEventListener("click", () => copy(bodyBox.value, label + " message"));
+  $("tpl-reset").addEventListener("click", () => {
+    bodyBox.value = TPL_CHANNEL === "email" ? DEFAULT_TPL
+                  : TPL_CHANNEL === "whatsapp" ? DEFAULT_WA : DEFAULT_LI;
+    if(subjBox) subjBox.value = SUBJECT;
+    paint();
+    toast("Reset — press Save to keep it");
+  });
+}
+
+/* ------------------------------------------------------------- events --- */
+const EV_STATUS_VAR = { ok:"--green", partial:"--amber", skip:"--mute", fail:"--red" };
+
+function viewEvents(host){
+  host.append(pageHead("Events",
+    "What the scraper did, run by run. Every source and every pipeline layer reports " +
+    "its own outcome, so a broken source shows up here instead of silently returning nothing."));
+
+  const s = stack();
+  const loading = document.createElement("div");
+  loading.className = "loading";
+  loading.textContent = "Loading events…";
+  s.append(loading);
+  host.append(s);
+
+  (async () => {
+    let data;
+    try{
+      data = await api("/api/events?limit=400");
+    }catch(e){
+      loading.remove();
+      const err = document.createElement("div");
+      err.className = "empty";
+      err.innerHTML = `<b>Couldn't load events</b>${esc(e.message)}`;
+      s.append(err);
+      return;
+    }
+    loading.remove();
+
+    const runs = data.runs || [];
+    const events = data.events || [];
+
+    if(!events.length){
+      const e = document.createElement("div");
+      e.className = "empty";
+      e.innerHTML = `<b>No events yet</b>The scraper records one as soon as it next runs ` +
+        `(every 6 hours, or run <span class="mono">push.py</span> yourself).`;
+      s.append(e);
+      return;
+    }
+
+    // Health tiles — the numbers you'd actually want at a glance.
+    const fails = events.filter(e => e.status === "fail");
+    const lastRun = runs[0];
+    const tiles = document.createElement("div");
+    tiles.className = "grid g4";
+    tiles.append(
+      tile("Runs recorded", runs.length, "most recent first"),
+      tile("Last run", lastRun ? ago(lastRun.started_at) : "—",
+           lastRun ? `${lastRun.total} events` : ""),
+      tile("Failures", fails.length, fails.length ? "see below" : "nothing broken"),
+      tile("Events kept", events.length, "pruned after 30 days"),
+    );
+    s.append(tiles);
+
+    // Anything currently failing deserves to be at the top, not buried.
+    if(fails.length){
+      const f = panel("Failures", `${fails.length} in the last ${runs.length} run(s)`);
+      f.body.innerHTML = `<div class="scrollx"><table>
+        <thead><tr><th>When</th><th>What</th><th>Message</th></tr></thead>
+        <tbody>${fails.slice(0, 20).map(e => `<tr>
+          <td>${esc(ago(e.at))}</td>
+          <td class="strong">${esc(e.name || e.kind)}</td>
+          <td class="wrap">${esc((e.message || "").slice(0, 160))}</td>
+        </tr>`).join("")}</tbody></table></div>`;
+      s.append(f.card);
+    }
+
+    // One card per run, newest first.
+    for(const run of runs.slice(0, 8)){
+      const mine = events.filter(e => e.run_id === run.run_id);
+      const byStatus = run.by_status || {};
+      const meta = ["ok", "partial", "skip", "fail"]
+        .filter(k => byStatus[k]).map(k => `${byStatus[k]} ${k}`).join(" · ");
+      const dur = run.ended_at && run.started_at
+        ? Math.round((run.ended_at - run.started_at) / 1000) + "s" : "unfinished";
+
+      const c = panel(new Date(run.started_at).toLocaleString(), `${dur} · ${meta}`, "flush");
+      const rows = mine
+        .filter(e => e.kind === "source" || e.kind === "layer" || e.kind === "push" || e.kind === "prune")
+        .map(e => {
+          const counts = e.counts && Object.keys(e.counts).length
+            ? Object.entries(e.counts).map(([k, v]) => `${k} ${v}`).join(", ") : "";
+          return `<tr>
+            <td><span style="color:var(${EV_STATUS_VAR[e.status] || "--mute"});font-weight:600">
+              ${esc(e.status)}</span></td>
+            <td class="strong">${esc(e.name || "")}</td>
+            <td>${esc(e.kind)}</td>
+            <td>${esc(counts)}</td>
+            <td>${e.duration_ms != null ? Math.round(e.duration_ms / 100) / 10 + "s" : ""}</td>
+            <td class="wrap">${esc((e.message || "").slice(0, 120))}</td>
+          </tr>`;
+        }).join("");
+      c.body.innerHTML = rows
+        ? `<div class="scrollx"><table><thead><tr>
+             <th>Status</th><th>Name</th><th>Kind</th><th class="num">Counts</th>
+             <th>Took</th><th>Message</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : `<div class="card-bd"><p class="hint">This run recorded no source or layer events.</p></div>`;
+      s.append(c.card);
+    }
+
+    const tools = panel("Housekeeping");
+    tools.body.innerHTML = `
+      <p class="hint mb3">Events are append-only and one arrives every
+        6 hours, so they get their own eviction — separate from the 10-day lead rule.</p>
+      <div class="row">
+        <label class="lb m0">Drop events older than</label>
+        <input class="f" id="ev-days" type="number" min="1" max="365" value="30" class="w-num">
+        <span class="hint">days</span>
+        <button class="btn danger" id="ev-prune">Prune events</button>
+      </div>
+      <p class="hint" id="ev-status" class="mt3"></p>`;
+    s.append(tools.card);
+
+    $("ev-prune").addEventListener("click", async () => {
+      const days = Math.max(1, Math.min(365, Number($("ev-days").value) || 30));
+      try{
+        const r = await api(`/api/events?days=${days}`, { method: "DELETE" });
+        $("ev-status").textContent = `Removed ${r.removed} event(s).`;
+        toast(`Pruned ${r.removed} events`);
+        render();
+      }catch(e){ $("ev-status").textContent = "Prune failed: " + e.message; }
+    });
+  })();
+}
+
+/* --------------------------------------------------------------- data --- */
+function viewData(host){
+  host.append(pageHead("Import & export",
+    "Bring companies in from a file or the scraper, and take a full backup out. Imports only ever add — nothing already here gets overwritten."));
+
+  const s = stack();
+
+  const imp = panel("Import", "CSV or JSON");
+  imp.body.innerHTML = `
+    <div class="row">
+      <button class="btn primary" id="imp-pick">Choose file…</button>
+      <a class="btn" href="/sample-import.csv" download>↓ Sample CSV</a>
+      <a class="btn ghost" href="/IMPORT-FORMAT.md" target="_blank" rel="noopener">Format reference</a>
+      <input type="file" id="imp-file" accept=".csv,.json,text/csv,application/json" hidden>
+    </div>
+    <p class="hint" id="imp-status" class="mt3"></p>
+    <div class="seclabel"><h3>CSV columns</h3><span class="ln"></span></div>
+    <div class="scrollx"><table>
+      <thead><tr><th>Column</th><th>Required</th><th>Notes</th></tr></thead><tbody>
+        <tr><td class="strong">name</td><td>yes</td><td>Company name — also its identity</td></tr>
+        <tr><td class="strong">tab</td><td>yes</td><td>${TABS.map(t => `<code>${t[0]}</code>`).join(" ")}</td></tr>
+        <tr><td class="strong">section</td><td>no</td><td>Contact tier — auto-assigned if blank</td></tr>
+        <tr><td class="strong">hr em wa</td><td>no</td><td>Multiple values separated by <code>;</code></td></tr>
+        <tr><td class="strong">li</td><td>no</td><td>LinkedIn handle or full URL</td></tr>
+        <tr><td class="strong">land note</td><td>no</td><td>Free text</td></tr>
+        <tr><td class="strong">job_url job_title</td><td>no</td><td>A live opening</td></tr>
+        <tr><td class="strong">stage</td><td>no</td><td>${STAGES.map(st => `<code>${st[0]}</code>`).join(" ")}</td></tr>
+      </tbody></table></div>`;
+  s.append(imp.card);
+
+  const exp = panel("Export");
+  exp.body.innerHTML = `
+    <p class="hint mb3">Every company, its stage, its notes, and your message template — one JSON file.</p>
+    <a class="btn" href="/api/export" download>↓ Download JSON backup</a>`;
+  s.append(exp.card);
+
+  const scr = panel("Scraper", "runs every 6h");
+  scr.body.innerHTML = `
+    <p class="hint mb3">Pushes straight in — no file step:</p>
+    <div class="codeblock">python push.py --url ${esc(location.origin)} --password '&lt;your passphrase&gt;'</div>
+    <p class="hint mt3">Four layers: aggregator APIs and LinkedIn search find
+      companies, then Greenhouse/Lever/Ashby boards are checked for the same company,
+      then contacts are pulled out of the job description, then each lead is graded.
+      Naukri stays blocked behind a reCAPTCHA gate.</p>`;
+  s.append(scr.card);
+
+  const pr = panel("Stale leads", "auto-pruned every run");
+  pr.body.innerHTML = `
+    <p class="hint mb3">A scraped lead you <b>never applied to</b> is dropped
+      after 10 days — by then it's usually filled, and it buries the fresh ones.
+      <b>Apply to it and it's kept permanently</b>: any stage at all, even Rejected, protects it,
+      and so does a note you typed. Your 84 hand-researched companies are never evicted,
+      whatever their age.</p>
+    <div class="row">
+      <label class="lb m0">Older than</label>
+      <input class="f" id="pr-days" type="number" min="1" max="365" value="10" class="w-num">
+      <span class="hint">days</span>
+      <button class="btn" id="pr-check">Preview</button>
+      <button class="btn danger" id="pr-run">Prune now</button>
+    </div>
+    <p class="hint" id="pr-status" class="mt3"></p>`;
+  s.append(pr.card);
+
+  host.append(s);
+
+  const prDays = () => Math.max(1, Math.min(365, Number($("pr-days").value) || 10));
+  $("pr-check").addEventListener("click", async () => {
+    $("pr-status").textContent = "Checking…";
+    try{
+      const r = await api("/api/maintenance/prune?days=" + prDays());
+      $("pr-status").textContent = r.would_remove === 0
+        ? "Nothing to prune — no untouched scraped lead is that old."
+        : `${r.would_remove} would be removed: ` +
+          r.rows.slice(0, 8).map(x => x.name).join(", ") +
+          (r.rows.length > 8 ? `, and ${r.rows.length - 8} more` : "");
+    }catch(e){ $("pr-status").textContent = "Check failed: " + e.message; }
+  });
+  $("pr-run").addEventListener("click", async () => {
+    const days = prDays();
+    const preview = await api("/api/maintenance/prune?days=" + days).catch(() => null);
+    const n = preview ? preview.would_remove : 0;
+    if(!n){ $("pr-status").textContent = "Nothing to prune."; return; }
+    if(!confirm(`Permanently remove ${n} stale lead${n === 1 ? "" : "s"} older than ${days} days?`)) return;
+    try{
+      const r = await api("/api/maintenance/prune", {
+        method: "POST", body: JSON.stringify({ days }),
+      });
+      $("pr-status").textContent = `Removed ${r.removed}.`;
+      toast(`Pruned ${r.removed} stale lead${r.removed === 1 ? "" : "s"}`);
+      await loadAll();
+      renderNav();
+    }catch(e){ $("pr-status").textContent = "Prune failed: " + e.message; }
+  });
+
+  $("imp-pick").addEventListener("click", () => $("imp-file").click());
+  $("imp-file").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    $("imp-status").textContent = "Reading "+file.name+"…";
+    try{
+      const text = await file.text();
+      const payload = file.name.toLowerCase().endsWith(".csv")
+        ? { companies: parseCsv(text) }
+        : JSON.parse(text);
+      const res = await api("/api/import", { method:"POST", body: JSON.stringify(payload) });
+      $("imp-status").textContent =
+        `Added ${res.companies_added} companies, merged ${res.progress_merged} progress records.`;
+      toast("Imported "+res.companies_added+" companies");
+      await loadAll();
+      renderNav();
+    }catch(err){
+      $("imp-status").textContent = "Import failed: "+err.message;
+      toast("Import failed");
+    }
+    e.target.value = "";
+  });
+}
+
+/** Minimal RFC-4180-ish CSV parser — handles quoted fields and embedded commas. */
+function parseCsv(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for(let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if(inQuotes){
+      if(ch === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else if(ch === '"'){ inQuotes = true; }
+    else if(ch === ","){ row.push(field); field = ""; }
+    else if(ch === "\n" || ch === "\r"){
+      if(ch === "\r" && text[i+1] === "\n") i++;
+      row.push(field); field = "";
+      if(row.some(v => v.trim() !== "")) rows.push(row);
+      row = [];
+    } else field += ch;
+  }
+  row.push(field);
+  if(row.some(v => v.trim() !== "")) rows.push(row);
+
+  if(!rows.length) throw new Error("empty file");
+  const head = rows[0].map(h => h.trim().toLowerCase());
+  const need = ["name","tab"];
+  for(const n of need) if(!head.includes(n)) throw new Error(`CSV is missing a "${n}" column`);
+
+  const multi = (v) => String(v || "").split(";").map(s => s.trim()).filter(Boolean);
+  return rows.slice(1).map(cells => {
+    const g = (col) => {
+      const i = head.indexOf(col);
+      return i === -1 ? "" : String(cells[i] ?? "").trim();
+    };
+    return {
+      n: g("name"),
+      tab: g("tab").toLowerCase(),
+      section: g("section") || undefined,
+      hr: multi(g("hr")),
+      em: multi(g("em")),
+      wa: multi(g("wa")).map(w => w.replace(/\D/g,"")).filter(Boolean),
+      li: g("li"),
+      land: g("land"),
+      note: g("note"),
+      job_url: g("job_url"),
+      job_title: g("job_title"),
+      stage: g("stage") || "none",
+      source: "import",
+    };
+  }).filter(c => c.n && c.tab);
+}
+
+/* -------------------------------------------------------------- render -- */
+const TITLES = {
+  overview:"Overview", pipeline:"Pipeline", analytics:"Analytics",
+  message:"Message", events:"Events", data:"Import & export", add:"Add company",
+};
+
+function render(){
+  renderNav();
+  $("page-title").textContent = TITLES[VIEW] || "Overview";
+
+  const host = $("content");
+  host.textContent = "";
+  try{
+    if(VIEW === "overview")       viewOverview(host);
+    else if(VIEW === "pipeline")  viewPipeline(host);
+    else if(VIEW === "analytics") viewAnalytics(host);
+    else if(VIEW === "message")   viewMessage(host);
+    else if(VIEW === "events")    viewEvents(host);
+    else if(VIEW === "data")      viewData(host);
+    else if(VIEW === "add")       viewAdd(host);
+    else viewOverview(host);
+  }catch(e){
+    host.innerHTML = `<div class="empty">Something broke rendering this view: ${esc(e.message)}</div>`;
+  }
+}
+
+/* --------------------------------------------------------------- theme -- */
+const THEMES = [["auto","◐ Auto"],["light","☀ Light"],["dark","☾ Dark"]];
+let theme = localStorage.getItem("jo:theme") || "auto";
+function applyTheme(){
+  if(theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+  $("theme").textContent = (THEMES.find(t => t[0] === theme) || THEMES[0])[1];
+}
+$("theme").addEventListener("click", () => {
+  const i = THEMES.findIndex(t => t[0] === theme);
+  theme = THEMES[(i+1) % THEMES.length][0];
+  localStorage.setItem("jo:theme", theme);
+  applyTheme();
+});
+applyTheme();
+
+/* ---------------------------------------------------------------- boot -- */
+(async function boot(){
+  try{
+    await loadAll();
+    render();
+  }catch(e){
+    $("content").innerHTML = `<div class="empty">Couldn't load data: ${esc(e.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>

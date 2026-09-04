@@ -1,0 +1,1811 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Outreach — Mohd Suhel</title>
+<style>
+  :root{
+    --bg:#f7f6f3; --card:#fff; --ink:#16181d; --mute:#5d636e; --line:#e2e0da;
+    --accent:#1d6b3f; --accent-soft:#e8f2ec; --wa:#1f8a4c; --warn:#a3271f; --chip:#eeece6;
+    --blue:#0a66c2; --amber:#8a6100; --amber-soft:#f6efdc; --violet:#5b3fa8;
+    --shadow:0 1px 2px rgba(16,18,22,.05);
+  }
+  :root:not([data-theme="light"]){ }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --bg:#14161a; --card:#1c1f25; --ink:#e9eaec; --mute:#9aa1ac; --line:#2c313a;
+    --accent:#5fbd88; --accent-soft:#1d2a23; --wa:#4cc47c; --warn:#e5837a; --chip:#252a32;
+    --blue:#5aa9f0; --amber:#d7b45e; --amber-soft:#2b2416; --violet:#a992e8;
+    --shadow:none;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#14161a; --card:#1c1f25; --ink:#e9eaec; --mute:#9aa1ac; --line:#2c313a;
+    --accent:#5fbd88; --accent-soft:#1d2a23; --wa:#4cc47c; --warn:#e5837a; --chip:#252a32;
+    --blue:#5aa9f0; --amber:#d7b45e; --amber-soft:#2b2416; --violet:#a992e8;
+    --shadow:none;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-text-size-adjust:100%}
+  .wrap{max-width:820px;margin:0 auto;padding:18px 14px 70px}
+
+  header{display:flex;align-items:flex-start;gap:12px}
+  header .hgrow{flex:1;min-width:0}
+  header h1{font-size:21px;margin:0 0 4px;letter-spacing:-.2px}
+  header p{margin:0;color:var(--mute);font-size:12.5px}
+  .iconbtn{background:var(--card);border:1px solid var(--line);color:var(--mute);
+    border-radius:9px;min-width:44px;height:38px;padding:0 10px;font:inherit;font-size:13px;
+    cursor:pointer;flex:none}
+  .iconbtn:hover{color:var(--ink)}
+
+  .bar{height:8px;border-radius:99px;background:var(--chip);overflow:hidden;display:flex;margin:16px 0 9px}
+  .bar span{display:block;height:100%}
+
+  .stats{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px}
+  .stat{background:var(--chip);border-radius:7px;padding:6px 10px;font-size:12px;color:var(--mute)}
+  .stat b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+  .toolbar{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 0}
+  .search{flex:1;min-width:180px;background:var(--card);border:1px solid var(--line);
+    color:var(--ink);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;min-height:44px}
+  .search::placeholder{color:var(--mute)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0 0}
+  .chip{background:var(--card);border:1px solid var(--line);color:var(--mute);border-radius:99px;
+    padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer;min-height:34px}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+  .tabs{display:flex;gap:7px;margin:16px 0 2px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:1 0 auto;background:var(--card);border:1px solid var(--line);color:var(--mute);
+    border-radius:9px;padding:11px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+    white-space:nowrap;min-height:44px}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tab .n{font-weight:500;opacity:.7;font-size:12px;margin-left:4px;font-variant-numeric:tabular-nums}
+
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--mute);
+    margin:26px 0 10px;font-weight:600}
+
+  .card{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--line);
+    border-radius:11px;padding:13px 14px;margin-bottom:9px;box-shadow:var(--shadow)}
+  .card.dim{opacity:.5}
+  .card[data-stage="contacted"]{border-left-color:var(--blue)}
+  .card[data-stage="replied"]{border-left-color:var(--violet)}
+  .card[data-stage="interviewing"]{border-left-color:var(--amber)}
+  .card[data-stage="offer"]{border-left-color:var(--wa)}
+  .card[data-stage="rejected"]{border-left-color:var(--warn)}
+  .top{display:flex;align-items:flex-start;gap:10px}
+  .name{font-weight:650;font-size:15.5px;flex:1;line-height:1.3;min-width:0;overflow-wrap:anywhere}
+  .note{color:var(--mute);font-size:12.5px;margin:5px 0 0;overflow-wrap:anywhere}
+  .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:7px;font-size:11.5px;color:var(--mute)}
+  .flag{background:var(--amber-soft);color:var(--amber);border-radius:6px;padding:3px 7px;font-weight:600}
+
+  .stage{border:1px solid var(--line);background:var(--bg);color:var(--mute);border-radius:99px;
+    padding:6px 11px;font:inherit;font-size:12px;font-weight:650;cursor:pointer;flex:none;min-height:34px}
+  .stage[data-stage="contacted"]{border-color:var(--blue);color:var(--blue)}
+  .stage[data-stage="replied"]{border-color:var(--violet);color:var(--violet)}
+  .stage[data-stage="interviewing"]{border-color:var(--amber);color:var(--amber)}
+  .stage[data-stage="offer"]{background:var(--wa);border-color:var(--wa);color:#fff}
+  .stage[data-stage="rejected"]{border-color:var(--warn);color:var(--warn)}
+
+  .row{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  a.btn,button.btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;
+    border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;font-size:13.5px;
+    color:var(--ink);background:var(--bg);font-weight:500;cursor:pointer;min-height:40px}
+  a.btn:active,button.btn:active{transform:scale(.97)}
+  a.wa{background:var(--wa);border-color:var(--wa);color:#fff}
+  a.li{background:var(--blue);border-color:var(--blue);color:#fff}
+  a.hr{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:650}
+  .btn.small{font-size:12.5px;padding:7px 10px;min-height:34px}
+  .land{font-size:12.5px;color:var(--mute);margin-top:8px}
+
+  .notes{margin-top:9px}
+  .notes textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:9px 10px;font:inherit;font-size:13px;resize:vertical;min-height:64px}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px;box-shadow:var(--shadow)}
+  .panel textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:10px;font:inherit;font-size:13.5px;line-height:1.55;resize:vertical;min-height:110px}
+  .panel .rules{color:var(--mute);font-size:12.5px;margin:10px 0 0}
+  .hint{color:var(--mute);font-size:12px;margin:8px 0 0}
+  .hint code{background:var(--chip);border-radius:4px;padding:1px 5px;font-size:11.5px}
+
+  .form{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .form input{background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    padding:10px;font:inherit;font-size:13.5px;min-height:44px;min-width:0}
+  .form .full{grid-column:1/-1}
+  @media (max-width:520px){ .form{grid-template-columns:1fr} }
+
+  .empty{color:var(--mute);font-size:13.5px;line-height:1.6;background:var(--card);
+    border:1px dashed var(--line);border-radius:11px;padding:22px 16px;text-align:center}
+  .src{font-size:11.5px;color:var(--mute);margin:9px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .dot{width:7px;height:7px;border-radius:99px;background:var(--mute);flex:none}
+  .dot.live{background:var(--wa)} .dot.cache{background:var(--amber)} .dot.bundle{background:var(--warn)}
+
+  footer{margin-top:32px;color:var(--mute);font-size:12px;line-height:1.6}
+  footer code{background:var(--chip);border-radius:4px;padding:1px 5px}
+
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);
+    color:var(--bg);padding:10px 16px;border-radius:9px;font-size:13.5px;font-weight:500;
+    opacity:0;pointer-events:none;transition:opacity .18s;z-index:50;max-width:90vw}
+  .toast.show{opacity:1}
+
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="hgrow">
+    <h1>Outreach tracker</h1>
+    <p id="sub"></p>
+  </div>
+  <button class="iconbtn" id="theme" title="Theme">◐ Auto</button>
+</header>
+
+<div class="bar" id="bar" role="img" aria-label="Pipeline progress"></div>
+<div class="stats">
+  <div class="stat"><b id="c-done">0</b> / <b id="c-total">0</b> contacted</div>
+  <div class="stat"><b id="c-hr">0</b> HR inboxes</div>
+  <div class="stat"><b id="c-wa">0</b> WhatsApp</div>
+  <div class="stat"><b id="c-fu">0</b> need follow-up</div>
+</div>
+
+<div class="toolbar">
+  <input class="search" id="q" type="search" placeholder="Search company or note…" aria-label="Search companies">
+  <button class="iconbtn" id="export" title="Download progress as JSON">↓ Export</button>
+  <button class="iconbtn" id="import" title="Load progress from JSON">↑ Import</button>
+  <input type="file" id="file" accept="application/json,.json" hidden>
+</div>
+<div class="chips" id="chips" role="group" aria-label="Filters"></div>
+
+<div class="tabs" id="tabs" role="tablist"></div>
+<div id="panels"></div>
+
+<h2>The message</h2>
+<div class="panel">
+  <textarea id="tpl" aria-label="Outreach message template" spellcheck="false"></textarea>
+  <div class="row">
+    <button class="btn small" id="copytpl">Copy message</button>
+    <button class="btn small" id="resettpl">Reset to default</button>
+  </div>
+  <p class="hint">Tokens: <code>{company}</code> <code>{role}</code> <code>{name}</code> <code>{years}</code> <code>{stack}</code> — filled per card in every WhatsApp and email link.</p>
+  <p class="rules">
+    Ask before sending the resume — don’t open with an attachment.<br>
+    One message per company. No follow-up if there’s no reply.<br>
+    Mon–Fri, 10am–6pm only.<br>
+    Most numbers are sales lines — if redirected, ask who handles hiring.
+  </p>
+</div>
+
+<h2>Add a company</h2>
+<div class="panel">
+  <div class="form">
+    <input id="f-n" class="full" placeholder="Company name *" aria-label="Company name">
+    <input id="f-hr" placeholder="HR email(s), comma separated" aria-label="HR emails">
+    <input id="f-em" placeholder="General email(s)" aria-label="General emails">
+    <input id="f-wa" placeholder="WhatsApp, e.g. 919876543210" aria-label="WhatsApp numbers">
+    <input id="f-li" placeholder="LinkedIn company handle" aria-label="LinkedIn handle">
+    <input id="f-note" class="full" placeholder="Note — why they’re worth contacting" aria-label="Note">
+  </div>
+  <div class="row"><button class="btn" id="add">Add to <span id="add-where">…</span></button></div>
+</div>
+
+<footer id="foot"></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------------- me ---- */
+const ME = {
+  name:    "Mohd Suhel",
+  role:    "Full-stack developer (React / Node)",
+  years:   "2",
+  company: "Jamtech Technologies",
+  stack:   "React, Next.js, React Native, Node, Express, MongoDB",
+  ai:      "AI workflows, agent pipelines and vector search",
+  target:  "Full-stack / MERN / AI-integrated, 1–3 yr band",
+  email:   "mohdsuhel.dev@gmail.com",
+  phone:   "919519838720",
+  linkedin:"https://www.linkedin.com/in/mohd-suhel-4b2072257",
+  github:  "https://github.com/Suheldevs",
+  folio:   "https://mohdsuhel.netlify.app/",
+  resume:  "https://drive.google.com/file/d/1_-uaMxN4XP4evy416qIrA0HlUv5YKWti/view?usp=sharing",
+  notice:  "30 days"
+};
+
+const DEFAULT_TPL =
+"Hello, I am {name} — a full-stack developer with {years} years' experience, currently at " +
+"Jamtech Technologies. I work on AI-integrated systems: AI workflows, agent pipelines and " +
+"vector-search features, built on React / Next.js / Node. I wanted to check if {company} has " +
+"an opening for a full-stack or AI-focused developer. May I send my resume here?";
+
+const SUBJECT = "Full-stack / AI developer (2 yrs, React · Node) — application";
+
+/* ------------------------------------------------------------ storage ---- */
+const K = "outreach:v1:";
+const store = {
+  get(k){ try{ const v = localStorage.getItem(K+k); return v===null?null:JSON.parse(v); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(K+k, JSON.stringify(v)); return true; }catch(e){ return false; } },
+  del(k){ try{ localStorage.removeItem(K+k); }catch(e){} }
+};
+
+/* Stable id: slug of the name. Live-fetched rows carry no id of their own, so
+   the name is the only identity available — slugging means capitalisation and
+   punctuation drift don't orphan a card's status and notes. */
+const idOf = (name) => String(name).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+
+let STATE = store.get("state") || {};      // id -> {stage, at, note}
+let CUSTOM = store.get("custom") || {};    // tabKey -> [company, …]
+let TPL = store.get("tpl") || DEFAULT_TPL;
+
+/* --------------------------------------------------------------- data ---- */
+/* Bangalore + Pune are re-fetched from the live sweep on every load; this copy
+   is the offline fallback only. Lucknow / Noida / Remote are researched here. */
+const BUNDLED = {
+ "s1": [
+  {
+   "n": "Zethic Technologies",
+   "li": "zethic-tech",
+   "hr": [
+    "careers@zethic.com"
+   ],
+   "em": [
+    "hello@zethic.com"
+   ],
+   "wa": [
+    "919611738802",
+    "919036910024"
+   ],
+   "note": "~10-49 people, founded 2019. Custom web + mobile. Small enough that a good CV gets read."
+  },
+  {
+   "n": "Ozrit Technologies",
+   "li": "ozrit",
+   "hr": [
+    "hr@ozrit.com"
+   ],
+   "em": [
+    "connect@ozrit.com"
+   ],
+   "wa": [
+    "918179260294",
+    "919949372347"
+   ],
+   "note": "Ashok Nagar, Bengaluru. AI-focused web solutions."
+  },
+  {
+   "n": "Tarento",
+   "li": "tarento-group",
+   "hr": [
+    "careers@tarento.com"
+   ],
+   "em": [],
+   "wa": [],
+   "note": "Bangalore + Stockholm. Bigger and better paying than the rest here. No public mobile."
+  }
+ ],
+ "s2": [
+  {
+   "n": "7EDGE",
+   "li": "7EDGE",
+   "hr": [],
+   "em": [
+    "projects@7edge.com",
+    "ask@7edge.com"
+   ],
+   "wa": [
+    "917022222227"
+   ],
+   "note": "Founded 2010, microservices + serverless.",
+   "job": {
+    "u": "https://7edge.keka.com/careers/jobdetails/40075",
+    "t": "SDE-1 Backend open"
+   }
+  },
+  {
+   "n": "Techasoft",
+   "li": "techasoft-pvt-ltd",
+   "hr": [],
+   "em": [],
+   "wa": [
+    "918884739988",
+    "918867746186"
+   ],
+   "note": "HSR Layout. IT consulting + software development."
+  },
+  {
+   "n": "Nextbrain Technologies",
+   "li": "nextbraintech",
+   "hr": [],
+   "em": [
+    "hello@nextbraintech.com"
+   ],
+   "wa": [
+    "918088321887",
+    "919952493995"
+   ],
+   "note": "Mahadevapura. Builds for startups and SMBs."
+  },
+  {
+   "n": "Webomind Apps",
+   "li": "webomindapps-private-limited",
+   "hr": [],
+   "em": [],
+   "wa": [
+    "919353370081",
+    "918088749165"
+   ],
+   "note": "Koramangala 5th Block."
+  },
+  {
+   "n": "Digit88",
+   "li": "digit88-technologies",
+   "hr": [],
+   "em": [],
+   "wa": [
+    "919901159096"
+   ],
+   "note": "75+ engineers, B2B/B2C SaaS product teams. Good technical work."
+  },
+  {
+   "n": "Kalpita Technologies",
+   "li": "kalpitatechnologies",
+   "hr": [],
+   "em": [
+    "hello@kalpita.in"
+   ],
+   "wa": [
+    "919995881011"
+   ],
+   "note": "50-249 people. Fintech and insurtech."
+  },
+  {
+   "n": "EchoPx Technologies",
+   "li": "echopx-web-technologies-private-limited",
+   "hr": [],
+   "em": [
+    "info@echopx.com"
+   ],
+   "wa": [
+    "919739966977"
+   ],
+   "land": "+91 80509 66966",
+   "note": "Rajajinagar."
+  },
+  {
+   "n": "Nextwebi",
+   "li": "nextwebi",
+   "hr": [],
+   "em": [
+    "projects@nextwebi.com"
+   ],
+   "wa": [
+    "917619635111"
+   ],
+   "note": "HSR Layout Sector 2."
+  },
+  {
+   "n": "Zinavo",
+   "li": "zinavo",
+   "hr": [],
+   "em": [
+    "info@zinavo.com"
+   ],
+   "wa": [
+    "917760245945"
+   ],
+   "land": "+91 80356 94395",
+   "note": "11-50 people. React, Angular, Node."
+  },
+  {
+   "n": "TechAx Labs",
+   "li": "techaxlabs",
+   "hr": [],
+   "em": [],
+   "wa": [
+    "919608100647"
+   ],
+   "note": "HSR Layout. AI/ML focused."
+  },
+  {
+   "n": "MindGee",
+   "li": "mindgee-technologies-pvt-ltd",
+   "hr": [],
+   "em": [
+    "sales@mindgee.in"
+   ],
+   "wa": [
+    "918951605665",
+    "918951605480"
+   ],
+   "note": "Small agency. Number is a sales line."
+  },
+  {
+   "n": "GeekyAnts",
+   "li": "geekyants-software-pvt-ltd",
+   "hr": [],
+   "em": [
+    "info@geekyants.com"
+   ],
+   "wa": [],
+   "land": "+91 80430 58884",
+   "note": "BTM Layout. React Native heavy — fits your stack. Landline only, so email or LinkedIn."
+  },
+  {
+   "n": "Kognivera",
+   "li": "kognivera",
+   "hr": [],
+   "em": [
+    "reachus@kognivera.com"
+   ],
+   "wa": [],
+   "note": "Bangalore. React roles posted recently."
+  }
+ ],
+ "s3": [
+  {
+   "n": "HashStudioz",
+   "li": "hashstudioz",
+   "hr": [
+    "hr@hashstudioz.com"
+   ],
+   "em": [
+    "info@hashstudioz.com"
+   ],
+   "wa": [
+    "919718517228",
+    "919500069296"
+   ],
+   "note": "Noida. Remote roles do come up."
+  },
+  {
+   "n": "Way2Smile / W2S",
+   "li": "w2s-solutions",
+   "hr": [
+    "careers@w2ssolutions.com",
+    "hr@way2smile.com"
+   ],
+   "em": [
+    "bd@w2ssolutions.com"
+   ],
+   "wa": [
+    "918310580737",
+    "917338773388"
+   ],
+   "note": "Chennai."
+  },
+  {
+   "n": "TatvaSoft",
+   "li": "tatvasoft",
+   "hr": [],
+   "em": [
+    "info@tatvasoft.com"
+   ],
+   "wa": [
+    "919601421472"
+   ],
+   "note": "Ahmedabad. Hires MERN in volume."
+  },
+  {
+   "n": "Zealous System",
+   "li": "zealous-system-pvt-ltd-",
+   "hr": [],
+   "em": [
+    "info@zealousys.com"
+   ],
+   "wa": [
+    "919925016519"
+   ],
+   "note": "Ahmedabad."
+  },
+  {
+   "n": "OpenXcell",
+   "li": "openxcell",
+   "hr": [],
+   "em": [
+    "sales@openxcell.com"
+   ],
+   "wa": [],
+   "note": "Ahmedabad. Hires 2-4 yr devs regularly."
+  }
+ ],
+ "p1": [
+  {
+   "n": "Velotio Technologies",
+   "hr": [
+    "careers@velotio.com"
+   ],
+   "em": [
+    "contact@velotio.com"
+   ],
+   "wa": [],
+   "li": "velotio-technologies",
+   "note": "Product engineering for global startups. Best-paying name on this list — worth a careful application."
+  },
+  {
+   "n": "Talentica Software",
+   "hr": [
+    "careers@talentica.com"
+   ],
+   "em": [
+    "info@talentica.com"
+   ],
+   "wa": [],
+   "li": "talentica",
+   "note": "Builds products for funded startups. Strong engineering culture."
+  },
+  {
+   "n": "Mobisoft Infotech",
+   "hr": [
+    "jobs@mobisoftinfotech.com"
+   ],
+   "em": [
+    "business@mobisoftinfotech.com"
+   ],
+   "wa": [
+    "918586008627"
+   ],
+   "li": "mobisoft-infotech",
+   "note": "Web + mobile product shop. Has both an HR inbox and a WhatsApp number."
+  },
+  {
+   "n": "Angular Minds",
+   "hr": [
+    "hr@angularminds.com"
+   ],
+   "em": [
+    "sales@angularminds.com"
+   ],
+   "wa": [
+    "919130057307",
+    "919834625788"
+   ],
+   "li": "angular-minds",
+   "note": "Baner, Pune. MEAN/MERN stack shop — close to your stack."
+  },
+  {
+   "n": "Nirmitee.io",
+   "hr": [
+    "careers@nirmitee.io"
+   ],
+   "em": [
+    "hello@nirmitee.io"
+   ],
+   "wa": [],
+   "li": "nirmitee",
+   "note": "Small product engineering team."
+  },
+  {
+   "n": "Itorix Infotech",
+   "hr": [
+    "hr@itorixinfotech.com"
+   ],
+   "em": [
+    "info@itorixinfotech.com"
+   ],
+   "wa": [],
+   "li": "itorix-infotech",
+   "note": "Pune software services."
+  },
+  {
+   "n": "HeapTrace Technology",
+   "hr": [
+    "hra@heaptrace.com"
+   ],
+   "em": [],
+   "wa": [],
+   "li": "heaptrace-technology-pvt.-ltd.",
+   "note": "Their site asks for applications at exactly this address."
+  },
+  {
+   "n": "Zensar Technologies",
+   "hr": [
+    "careers@zensar.com"
+   ],
+   "em": [
+    "info@zensar.com"
+   ],
+   "wa": [],
+   "li": "zensar",
+   "note": "Large, not a small shop — but they hire 2-4 yr devs in volume."
+  },
+  {
+   "n": "Aexonic Technologies",
+   "hr": [
+    "hr@aexonic.com",
+    "careers@aexonic.com"
+   ],
+   "em": [
+    "info@aexonic.com"
+   ],
+   "wa": [],
+   "li": "aexonic-technologies",
+   "note": "Pune. Two hiring addresses published — mobile and web development."
+  },
+  {
+   "n": "Deqode",
+   "hr": [
+    "hr@deqode.com"
+   ],
+   "em": [
+    "marketing@deqode.com"
+   ],
+   "wa": [],
+   "li": "deqodesolutions",
+   "note": "Product engineering, blockchain and web. Hires 2-4 yr devs regularly."
+  },
+  {
+   "n": "Sproutlogix",
+   "hr": [
+    "careers@sproutlogix.com"
+   ],
+   "em": [
+    "hello@sproutlogix.com"
+   ],
+   "wa": [
+    "919765991191"
+   ],
+   "li": "sproutlogix",
+   "note": "HR-tech product company. Has both an HR inbox and WhatsApp."
+  },
+  {
+   "n": "Bytzsoft Technologies",
+   "hr": [
+    "careers@bytzsoft.com"
+   ],
+   "em": [
+    "info@bytzsoft.com"
+   ],
+   "wa": [],
+   "li": "bytzsoft-technologies-pvt-ltd",
+   "note": "Small Pune software services firm."
+  },
+  {
+   "n": "Qliktag Software",
+   "hr": [
+    "careers@qliktag.com"
+   ],
+   "em": [
+    "info@qliktag.com"
+   ],
+   "wa": [],
+   "li": "qliktag",
+   "note": "SaaS product — IoT / product cloud platform."
+  },
+  {
+   "n": "Techbro Software",
+   "hr": [
+    "careers@techbrosoftware.com"
+   ],
+   "em": [
+    "info@techbrosoftware.com"
+   ],
+   "wa": [],
+   "li": "techbro-software-pvt-ltd",
+   "note": "Small Pune development shop."
+  },
+  {
+   "n": "Edzeal Technologies",
+   "hr": [
+    "hr@edzeal.com"
+   ],
+   "em": [],
+   "wa": [
+    "918793800021",
+    "918793800022"
+   ],
+   "li": "edzeal-infosystems-pvt-ltd",
+   "note": "Small Pune firm. HR inbox plus two WhatsApp numbers."
+  },
+  {
+   "n": "Pennant Technologies",
+   "hr": [
+    "jobs@pennanttech.com",
+    "hr@pennanttech.com"
+   ],
+   "em": [
+    "info@pennanttech.com"
+   ],
+   "wa": [],
+   "li": "pennant-technologies",
+   "note": "Lending-tech product company. Two hiring addresses."
+  },
+  {
+   "n": "FIGmd India",
+   "hr": [
+    "recruitment@figmd.com"
+   ],
+   "em": [],
+   "wa": [],
+   "li": "6425548",
+   "note": "Healthcare data, Pune. Now part of MRO."
+  },
+  {
+   "n": "Xoriant",
+   "hr": [
+    "recruitment@xoriant.com"
+   ],
+   "em": [],
+   "wa": [],
+   "li": "xoriant",
+   "note": "Larger IT services, not a small shop — but hires MERN in volume."
+  }
+ ],
+ "p2": [
+  {
+   "n": "Coditude",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "coditude",
+   "note": "Wants AI-native developers — you use Claude Code on production daily and can prove it.",
+   "job": {
+    "u": "https://coditude.keka.com/careers/jobdetails/155466",
+    "t": "Full-Stack Engineer 1-3 yrs · 8d"
+   }
+  },
+  {
+   "n": "Cloudesign",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "cloudesign",
+   "note": "Frontend + ecommerce/AI commerce.",
+   "job": {
+    "u": "https://cloudesign.keka.com/careers/jobdetails/133837",
+    "t": "Frontend Engineer 2-4 yrs"
+   }
+  },
+  {
+   "n": "Mindbowser",
+   "hr": [],
+   "em": [
+    "contact@mindbowser.com"
+   ],
+   "wa": [
+    "919834164732"
+   ],
+   "li": "mindbowser-infosolutions",
+   "note": "Product development shop, healthtech heavy."
+  },
+  {
+   "n": "GrowLoc",
+   "hr": [],
+   "em": [
+    "contact@growloc.com"
+   ],
+   "wa": [
+    "919011014488"
+   ],
+   "li": "growloc",
+   "note": "Agri-tech IoT, Shivajinagar. Has advertised MERN roles before."
+  },
+  {
+   "n": "MarsDevs",
+   "hr": [],
+   "em": [],
+   "wa": [
+    "919158729122"
+   ],
+   "li": "marsdevs",
+   "note": "MERN and MVP development shop."
+  },
+  {
+   "n": "SwayAlgo Technologies",
+   "hr": [],
+   "em": [
+    "contact@swayalgo.com"
+   ],
+   "wa": [
+    "919049281123"
+   ],
+   "li": "swayalgo-technologies-pvt-ltd",
+   "note": "AI/ML and IoT, Tata group ecosystem clients."
+  },
+  {
+   "n": "EternaLight Infotech",
+   "hr": [],
+   "em": [
+    "contact@eternalight.in"
+   ],
+   "wa": [
+    "918438308022"
+   ],
+   "li": "eternalight-infotech",
+   "note": "Small Pune agency."
+  },
+  {
+   "n": "Amura Tech",
+   "hr": [],
+   "em": [
+    "enquire@amuratech.com"
+   ],
+   "wa": [
+    "918530238784"
+   ],
+   "li": "amura-marketing-technologies-pvt-ltd",
+   "note": "Mahalunge. Marketing-tech, and their dev roles lean PHP — lower priority for you."
+  },
+  {
+   "n": "GetGenea",
+   "hr": [],
+   "em": [],
+   "wa": [
+    "918669351557"
+   ],
+   "li": "getgenea",
+   "note": "Has advertised a Node.js Software Engineer role for Pune.",
+   "job": {
+    "u": "https://getgenea.keka.com/careers/jobdetails/40720",
+    "t": "Software Engineer I (NodeJS)"
+   }
+  },
+  {
+   "n": "Leometric Technology",
+   "hr": [],
+   "em": [
+    "contact@leometric.com"
+   ],
+   "wa": [
+    "919421959376"
+   ],
+   "li": "leometric-technology",
+   "note": "Hinjewadi, Pune."
+  },
+  {
+   "n": "Xento Systems",
+   "hr": [],
+   "em": [
+    "hello@xento.co.in"
+   ],
+   "wa": [
+    "919977223456",
+    "919891415000"
+   ],
+   "li": "",
+   "note": "Pune software services. No LinkedIn found on site."
+  },
+  {
+   "n": "SoftwareGen Technologies",
+   "hr": [],
+   "em": [
+    "info@softwaregen.com"
+   ],
+   "wa": [
+    "918956693545",
+    "919561968585"
+   ],
+   "li": "",
+   "note": "Small Pune shop. Two WhatsApp numbers."
+  },
+  {
+   "n": "Groots Software",
+   "hr": [],
+   "em": [
+    "sales@groots.in"
+   ],
+   "wa": [
+    "919175150687"
+   ],
+   "li": "groots",
+   "note": "Baner, Pune."
+  },
+  {
+   "n": "Crossbow InfoTech",
+   "hr": [],
+   "em": [
+    "rm@crossbow.co.in"
+   ],
+   "wa": [
+    "919986013562"
+   ],
+   "li": "",
+   "note": "Pune. Number is a relationship-manager line."
+  },
+  {
+   "n": "DevLogic Technologies",
+   "hr": [],
+   "em": [
+    "info@devlogic.in"
+   ],
+   "wa": [
+    "919699671529"
+   ],
+   "li": "",
+   "note": "Hinjewadi, Pune."
+  }
+ ],
+ "p3": [
+  {
+   "n": "Thinkitive Technologies",
+   "hr": [],
+   "em": [
+    "hello@thinkitive.com"
+   ],
+   "wa": [],
+   "li": "815599",
+   "note": "Healthtech product engineering."
+  },
+  {
+   "n": "Scrobits Technologies",
+   "hr": [],
+   "em": [
+    "contact@scrobits.com"
+   ],
+   "wa": [],
+   "li": "scrobits-technologies",
+   "note": "Web, mobile, MVP — works in MERN."
+  },
+  {
+   "n": "Siddhatech Software",
+   "hr": [],
+   "em": [
+    "info@siddhatech.com"
+   ],
+   "wa": [],
+   "li": "siddhatech-technologies",
+   "note": "Top-rated Pune firm on GoodFirms."
+  },
+  {
+   "n": "PromptCloud",
+   "hr": [],
+   "em": [
+    "sales@promptcloud.com"
+   ],
+   "wa": [],
+   "li": "promptcloud",
+   "note": "Data extraction at scale. No hiring inbox — LinkedIn."
+  },
+  {
+   "n": "Indexnine Technologies",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "indexnine-technologies",
+   "note": "Product engineering. LinkedIn only."
+  },
+  {
+   "n": "Saama Technologies",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "saama-technologies",
+   "note": "Clinical data + AI. LinkedIn only."
+  },
+  {
+   "n": "Harbinger Group",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "harbinger-group",
+   "note": "LinkedIn only."
+  },
+  {
+   "n": "Webassic IT Solutions",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "webassic-it-solutions",
+   "note": "LinkedIn only."
+  },
+  {
+   "n": "Brew My Idea",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "brew-my-idea",
+   "note": "LinkedIn only."
+  },
+  {
+   "n": "Datafortune Software",
+   "hr": [],
+   "em": [
+    "info@datafortune.com"
+   ],
+   "wa": [],
+   "li": "datafortune",
+   "note": "Pune data + software services."
+  },
+  {
+   "n": "Entytle",
+   "hr": [],
+   "em": [
+    "info@entytle.com"
+   ],
+   "wa": [],
+   "li": "entytle",
+   "note": "Industrial aftermarket SaaS, Baner."
+  },
+  {
+   "n": "Mobicule Technologies",
+   "hr": [],
+   "em": [
+    "sales@mobicule.com"
+   ],
+   "wa": [],
+   "li": "mobicule-technologies-pvt-ltd-",
+   "note": "Baner. Enterprise mobility."
+  }
+ ]
+};
+
+const SEED = {
+ "l1": [
+  {
+   "n": "Augurs Technologies",
+   "hr": [
+    "hr@augurs.in"
+   ],
+   "em": [
+    "info@augurs.in",
+    "anchal@augurs.in"
+   ],
+   "wa": [],
+   "li": "",
+   "land": "+91-522-4013221",
+   "note": "Lucknow. The only firm here publishing a real hr@ inbox — email this one properly."
+  }
+ ],
+ "l2": [
+  {
+   "n": "Algorithus",
+   "hr": [],
+   "em": [
+    "support@algorithus.com"
+   ],
+   "wa": [
+    "919794440685"
+   ],
+   "li": "algorithus",
+   "note": "Lucknow. Publishes a mobile, not a landline — WhatsApp works."
+  },
+  {
+   "n": "Duplex Technologies",
+   "hr": [],
+   "em": [
+    "sales@duplextech.com"
+   ],
+   "wa": [
+    "919452000089"
+   ],
+   "li": "duplex-technologies-services",
+   "job": {
+    "u": "https://career.duplextech.com/",
+    "t": "Careers portal"
+   },
+   "note": "Lucknow. Runs its own careers portal — apply there, then WhatsApp to flag it."
+  },
+  {
+   "n": "Websofy Software",
+   "hr": [],
+   "em": [
+    "info@websofy.com"
+   ],
+   "wa": [
+    "918953777346",
+    "919250687597",
+    "919335785354",
+    "917309979797"
+   ],
+   "li": "websofypvtltd",
+   "note": "Lucknow. Four mobiles published — sales lines, so ask who handles hiring."
+  },
+  {
+   "n": "SigmaIT Software Designers",
+   "hr": [],
+   "em": [
+    "support@sigmasoftwares.co.in",
+    "md@sigmasoftwares.in"
+   ],
+   "wa": [
+    "918957542194"
+   ],
+   "li": "",
+   "note": "Lucknow. md@ reaches the founder directly at a firm this size."
+  },
+  {
+   "n": "Webdigitronix Softlabs",
+   "hr": [],
+   "em": [
+    "info@webdigitronix.com"
+   ],
+   "wa": [
+    "918795357707",
+    "918400000073"
+   ],
+   "li": "webdigitronix",
+   "note": "Lucknow. Decade-old shop, two mobiles published."
+  }
+ ],
+ "l3": [
+  {
+   "n": "Enginify Technologies",
+   "hr": [],
+   "em": [
+    "info@enginify.in"
+   ],
+   "wa": [],
+   "li": "enginify",
+   "land": "+91 522 4626680",
+   "note": "Lucknow. Landline only — LinkedIn is the better opener."
+  }
+ ],
+ "n1": [
+  {
+   "n": "Appinventiv",
+   "hr": [
+    "career@appinventiv.com"
+   ],
+   "em": [
+    "info@appinventiv.com"
+   ],
+   "wa": [
+    "918448182018"
+   ],
+   "li": "appinventiv",
+   "note": "Noida. Large app studio, real careers inbox, hires React Native in volume — closest to your stack."
+  },
+  {
+   "n": "QSS Technosoft",
+   "hr": [
+    "career@qsstechnosoft.com"
+   ],
+   "em": [
+    "hello@qsstechnosoft.com"
+   ],
+   "wa": [
+    "919310747505"
+   ],
+   "li": "qss-technosoft",
+   "note": "Noida. Publishes both a careers inbox and a mobile."
+  }
+ ],
+ "n2": [
+  {
+   "n": "TO THE NEW",
+   "hr": [],
+   "em": [
+    "connect@tothenew.com"
+   ],
+   "wa": [],
+   "li": "tothenew",
+   "land": "+91 120 4601800",
+   "note": "Noida. Big digital engineering firm, strong Node/React work. No hiring inbox — go via LinkedIn."
+  },
+  {
+   "n": "Innovaccer",
+   "hr": [],
+   "em": [
+    "team@innovaccer.com"
+   ],
+   "wa": [],
+   "li": "innovaccer",
+   "note": "Noida. Healthcare AI product company — the closest match to your AI-integrated angle."
+  },
+  {
+   "n": "Algoworks",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "algoworks",
+   "land": "+91-120-413-8727",
+   "note": "Noida. Email is obfuscated on their site — don't guess it, use LinkedIn."
+  },
+  {
+   "n": "Successive Digital",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "successivetech",
+   "land": "+91 120 425-9482",
+   "note": "Noida. Contact form only, no published address."
+  }
+ ],
+ "r1": [
+  {
+   "n": "GeekyAnts",
+   "hr": [],
+   "em": [
+    "info@geekyants.com"
+   ],
+   "wa": [],
+   "li": "geekyants",
+   "land": "+91-80-4305-8884",
+   "note": "React Native specialists, hire remote across India. Your React Native work is directly relevant."
+  },
+  {
+   "n": "Hasura",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "hasura",
+   "note": "Remote-first, GraphQL/Node. No published inbox — LinkedIn or their careers page."
+  },
+  {
+   "n": "Mindfire Solutions",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "mindfire-solutions",
+   "note": "Long-running remote-friendly engineering firm. Email is obfuscated on site."
+  },
+  {
+   "n": "Appsmith",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "appsmith",
+   "note": "Remote-first open-source product company. Contributing on GitHub is a real way in."
+  },
+  {
+   "n": "Wellfound — remote MERN board",
+   "hr": [],
+   "em": [],
+   "wa": [],
+   "li": "",
+   "job": {
+    "u": "https://wellfound.com/role/r/mern-stack-developer",
+    "t": "Remote MERN roles"
+   },
+   "note": "Not a company — the board worth checking weekly. Remote-first startups post here first."
+  }
+ ]
+};
+
+const SECTIONS = {
+  blr:  [["s1","Real HR inbox — email these properly"],
+         ["s2","WhatsApp them"],
+         ["s3","Outside Bangalore — but real HR inbox"]],
+  pune: [["p1","Real HR inbox — email these properly"],
+         ["p2","Live opening right now, or WhatsApp them"],
+         ["p3","Email / LinkedIn only"]],
+  lko:  [["l1","Real HR inbox — email these properly"],
+         ["l2","WhatsApp them"],
+         ["l3","Email / LinkedIn only"]],
+  noida:[["n1","Real HR inbox — email these properly"],
+         ["n2","Phone / LinkedIn only"]],
+  rem:  [["r1","Remote-friendly — LinkedIn first"]]
+};
+const TABS = [["blr","Bangalore"],["pune","Pune"],["lko","Lucknow"],["noida","Noida / NCR"],["rem","Remote"]];
+const LIVE_KEYS = ["s1","s2","s3","p1","p2","p3"];
+
+let DATA = {};   // section key -> [company, …]
+let SOURCE = "bundle";
+let FETCHED_AT = null;
+
+/* ------------------------------------------------------------ helpers ---- */
+const STAGES = [
+  ["none",        "Not contacted"],
+  ["contacted",   "Contacted"],
+  ["replied",     "Replied"],
+  ["interviewing","Interviewing"],
+  ["offer",       "Offer"],
+  ["rejected",    "Rejected"]
+];
+const STAGE_LABEL = Object.fromEntries(STAGES);
+const STAGE_COLOR = { contacted:"var(--blue)", replied:"var(--violet)",
+  interviewing:"var(--amber)", offer:"var(--wa)", rejected:"var(--warn)" };
+
+const rec = (id) => STATE[id] || { stage:"none", at:null, note:"" };
+const isDone = (id) => rec(id).stage !== "none";
+
+function ago(ts){
+  if(!ts) return "";
+  const d = Math.floor((Date.now()-ts)/86400000);
+  if(d <= 0) return "today";
+  if(d === 1) return "yesterday";
+  if(d < 30) return d+" days ago";
+  const m = Math.floor(d/30);
+  return m === 1 ? "a month ago" : m+" months ago";
+}
+function needsFollowUp(id){
+  const r = rec(id);
+  return r.stage === "contacted" && r.at && (Date.now()-r.at) > 7*86400000;
+}
+function pretty(w){
+  const d = String(w).replace(/\D/g,"");
+  return d.length === 12 ? "+91 "+d.slice(2,7)+" "+d.slice(7) : "+"+d;
+}
+function fill(tplStr, companyName){
+  return tplStr
+    .replace(/\{company\}/g, companyName)
+    .replace(/\{name\}/g,    ME.name)
+    .replace(/\{role\}/g,    ME.role)
+    .replace(/\{years\}/g,   ME.years)
+    .replace(/\{stack\}/g,   ME.stack);
+}
+let toastTimer = null;
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), 1900);
+}
+async function copy(text, label){
+  try{
+    await navigator.clipboard.writeText(text);
+    toast(label+" copied");
+  }catch(e){
+    // Clipboard API needs a secure context; file:// in some browsers is not one.
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly","");
+    ta.style.cssText = "position:fixed;top:-1000px";
+    document.body.append(ta); ta.select();
+    try{ document.execCommand("copy"); toast(label+" copied"); }
+    catch(_){ toast("Copy failed — select it manually"); }
+    ta.remove();
+  }
+}
+
+/* ----------------------------------------------------------- fetching ---- */
+const TARGET = "http://147.93.19.196/jobs/";
+const PROXIES = [
+  { name:"jina",       url:"https://r.jina.ai/"+TARGET, headers:{ "X-Return-Format":"html" } },
+  { name:"codetabs",   url:"https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(TARGET) },
+  { name:"allorigins", url:"https://api.allorigins.win/raw?url="+encodeURIComponent(TARGET) }
+];
+
+function parseSweep(html){
+  const blocks = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/g) || [];
+  const sc = blocks.find(b => b.includes("const DATA") && b.includes("const PUNE"));
+  if(!sc) throw new Error("DATA/PUNE block not found");
+  const read = (n) => {
+    const m = sc.match(new RegExp("const\\s+"+n+"\\s*=\\s*(\\{[\\s\\S]*?\\})\\s*;"));
+    if(!m) throw new Error("could not locate "+n);
+    // JS object literals, not JSON — DATA uses unquoted keys, so JSON.parse fails.
+    return Function('"use strict";return ('+m[1]+")")();
+  };
+  const merged = { ...read("DATA"), ...read("PUNE") };
+  const out = {};
+  for(const k of LIVE_KEYS) if(Array.isArray(merged[k])) out[k] = merged[k];
+  if(!Object.keys(out).length) throw new Error("no sections parsed");
+  return out;
+}
+
+async function refresh(quiet){
+  const problems = [];
+  for(const p of PROXIES){
+    try{
+      const resp = await fetch(p.url, { headers:p.headers || {} });
+      if(!resp.ok) throw new Error("HTTP "+resp.status);
+      const live = parseSweep(await resp.text());
+      Object.assign(DATA, live);
+      SOURCE = "live"; FETCHED_AT = Date.now();
+      store.set("cache", { at:FETCHED_AT, data:live });
+      render();
+      if(!quiet) toast("Updated from live sweep via "+p.name);
+      return true;
+    }catch(err){ problems.push(p.name+": "+err.message); }
+  }
+  if(!quiet) toast("Live refresh failed — showing "+SOURCE);
+  console.warn("Live refresh failed:", problems.join(" | "));
+  render();
+  return false;
+}
+
+/* ------------------------------------------------------------- filters --- */
+const FILTERS = [
+  ["hr",   "Has HR inbox",   (c)  => (c.hr||[]).length > 0],
+  ["wa",   "Has WhatsApp",   (c)  => (c.wa||[]).length > 0],
+  ["job",  "Live opening",   (c)  => !!c.job],
+  ["todo", "Not contacted",  (c,i)=> !isDone(i)],
+  ["fu",   "Needs follow-up",(c,i)=> needsFollowUp(i)]
+];
+let active = new Set();
+let query = "";
+let TAB = store.get("tab") || "blr";
+if(!TABS.some(t => t[0] === TAB)) TAB = "blr";
+
+function rowsFor(tab){
+  const out = [];
+  for(const [key,title] of SECTIONS[tab]){
+    const base = (DATA[key] || []).concat(CUSTOM[key] || []);
+    out.push([key, title, base]);
+  }
+  return out;
+}
+function passes(c){
+  const id = idOf(c.n);
+  if(query){
+    const hay = (c.n+" "+(c.note||"")+" "+(c.hr||[]).join(" ")+" "+(c.em||[]).join(" ")).toLowerCase();
+    if(!hay.includes(query)) return false;
+  }
+  for(const [k,,test] of FILTERS) if(active.has(k) && !test(c,id)) return false;
+  return true;
+}
+
+/* ------------------------------------------------------------ rendering -- */
+function stageButton(id, card){
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:relative;flex:none";
+  const b = document.createElement("button");
+  b.className = "stage";
+  b.dataset.stage = rec(id).stage;
+  b.textContent = STAGE_LABEL[rec(id).stage];
+  b.setAttribute("aria-label", "Status — click to advance, right-click or long-press for all stages");
+
+  const sel = document.createElement("select");
+  sel.setAttribute("aria-label","Set status");
+  sel.style.cssText = "position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer";
+  for(const [v,label] of STAGES){
+    const o = document.createElement("option");
+    o.value = v; o.textContent = label; sel.append(o);
+  }
+  sel.value = rec(id).stage;
+  sel.addEventListener("change", () => setStage(id, sel.value, card, b, sel));
+
+  b.addEventListener("click", (e) => {
+    e.preventDefault();
+    const order = STAGES.map(s => s[0]);
+    const next = order[(order.indexOf(rec(id).stage)+1) % order.length];
+    setStage(id, next, card, b, sel);
+  });
+  wrap.append(b, sel);
+  return wrap;
+}
+
+function setStage(id, stage, card, btn, sel){
+  const r = rec(id);
+  STATE[id] = { stage, at: stage === "none" ? null : Date.now(), note: r.note || "" };
+  if(stage === "none" && !STATE[id].note) delete STATE[id];
+  store.set("state", STATE);
+  btn.dataset.stage = stage;
+  btn.textContent = STAGE_LABEL[stage];
+  if(sel) sel.value = stage;
+  card.dataset.stage = stage;
+  card.classList.toggle("dim", stage === "rejected");
+  paintMeta(id, card);
+  count();
+  if(active.size) render();   // the card may no longer pass an active filter
+}
+
+function paintMeta(id, card){
+  const host = card.querySelector(".meta");
+  host.textContent = "";
+  const r = rec(id);
+  if(r.at){
+    const s = document.createElement("span");
+    s.textContent = STAGE_LABEL[r.stage].toLowerCase()+" "+ago(r.at);
+    host.append(s);
+  }
+  if(needsFollowUp(id)){
+    const f = document.createElement("span");
+    f.className = "flag"; f.textContent = "follow up";
+    host.append(f);
+  }
+}
+
+function card(c){
+  const id = idOf(c.n);
+  const el = document.createElement("div");
+  el.className = "card";
+  el.dataset.stage = rec(id).stage;
+  if(rec(id).stage === "rejected") el.classList.add("dim");
+
+  const top = document.createElement("div"); top.className = "top";
+  const nm = document.createElement("div"); nm.className = "name"; nm.textContent = c.n;
+  top.append(nm, stageButton(id, el));
+  el.append(top);
+
+  if(c.note){
+    const p = document.createElement("p"); p.className = "note"; p.textContent = c.note;
+    el.append(p);
+  }
+  const meta = document.createElement("div"); meta.className = "meta"; el.append(meta);
+  paintMeta(id, el);
+
+  const msg = fill(TPL, c.n);
+  const row = document.createElement("div"); row.className = "row";
+
+  (c.hr||[]).forEach(e => {
+    const a = document.createElement("a"); a.className = "btn hr";
+    a.href = "mailto:"+e+"?subject="+encodeURIComponent(SUBJECT)+"&body="+encodeURIComponent(msg);
+    a.textContent = "HR  "+e; row.append(a);
+  });
+  (c.wa||[]).forEach(w => {
+    const a = document.createElement("a"); a.className = "btn wa";
+    a.href = "https://wa.me/"+String(w).replace(/\D/g,"")+"?text="+encodeURIComponent(msg);
+    a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "WhatsApp  "+pretty(w); row.append(a);
+  });
+  (c.em||[]).forEach(e => {
+    const a = document.createElement("a"); a.className = "btn";
+    a.href = "mailto:"+e+"?subject="+encodeURIComponent(SUBJECT)+"&body="+encodeURIComponent(msg);
+    a.textContent = e; row.append(a);
+  });
+  if(c.job){
+    const a = document.createElement("a"); a.className = "btn";
+    a.href = c.job.u; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "↗ "+c.job.t; row.append(a);
+  }
+  if(c.li){
+    const a = document.createElement("a"); a.className = "btn li";
+    a.href = /^https?:/.test(c.li) ? c.li : "https://www.linkedin.com/company/"+c.li+"/people/";
+    a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "in  LinkedIn · People"; row.append(a);
+  }
+
+  const all = (c.hr||[]).concat(c.em||[]);
+  if(all.length){
+    const b = document.createElement("button"); b.className = "btn small";
+    b.textContent = "Copy email";
+    b.addEventListener("click", () => copy(all.join(", "), "Email"));
+    row.append(b);
+  }
+  const nb = document.createElement("button"); nb.className = "btn small";
+  nb.textContent = rec(id).note ? "Note ●" : "Note";
+  row.append(nb);
+  el.append(row);
+
+  if(c.land){
+    const d = document.createElement("div"); d.className = "land";
+    d.textContent = "landline "+c.land+"  —  no WhatsApp"; el.append(d);
+  }
+
+  const nWrap = document.createElement("div");
+  nWrap.className = "notes"; nWrap.hidden = !rec(id).note;
+  const ta = document.createElement("textarea");
+  ta.placeholder = "What they said, who you spoke to, when to circle back…";
+  ta.value = rec(id).note || "";
+  ta.setAttribute("aria-label", "Notes for "+c.n);
+  ta.addEventListener("input", () => {
+    const r = rec(id);
+    STATE[id] = { stage:r.stage, at:r.at, note:ta.value };
+    if(!ta.value && r.stage === "none") delete STATE[id];
+    store.set("state", STATE);
+    nb.textContent = ta.value ? "Note ●" : "Note";
+  });
+  nWrap.append(ta); el.append(nWrap);
+  nb.addEventListener("click", () => {
+    nWrap.hidden = !nWrap.hidden;
+    if(!nWrap.hidden) ta.focus();
+  });
+
+  return el;
+}
+
+function render(){
+  // Tabs
+  const tabHost = document.getElementById("tabs");
+  tabHost.textContent = "";
+  for(const [key,label] of TABS){
+    const b = document.createElement("button");
+    b.className = "tab"+(key === TAB ? " on" : "");
+    b.setAttribute("role","tab");
+    b.setAttribute("aria-selected", String(key === TAB));
+    b.setAttribute("aria-controls","panels");
+    b.textContent = label;
+    const n = document.createElement("span");
+    n.className = "n";
+    n.textContent = rowsFor(key).reduce((s,[,,list]) => s+list.length, 0);
+    b.append(n);
+    b.addEventListener("click", () => { TAB = key; store.set("tab", key); render(); });
+    tabHost.append(b);
+  }
+
+  // Chips
+  const chipHost = document.getElementById("chips");
+  chipHost.textContent = "";
+  for(const [k,label] of FILTERS){
+    const b = document.createElement("button");
+    b.className = "chip"+(active.has(k) ? " on" : "");
+    b.textContent = label;
+    b.setAttribute("aria-pressed", String(active.has(k)));
+    b.addEventListener("click", () => {
+      active.has(k) ? active.delete(k) : active.add(k);
+      render();
+    });
+    chipHost.append(b);
+  }
+
+  // Panels
+  const host = document.getElementById("panels");
+  host.textContent = "";
+  let shown = 0;
+  for(const [key,title,list] of rowsFor(TAB)){
+    const keep = list.filter(passes);
+    if(!keep.length) continue;
+    shown += keep.length;
+    const h = document.createElement("h2"); h.textContent = title; host.append(h);
+    for(const c of keep) host.append(card(c));
+  }
+  if(!shown){
+    const e = document.createElement("div"); e.className = "empty";
+    const total = rowsFor(TAB).reduce((s,[,,l]) => s+l.length, 0);
+    e.textContent = total === 0
+      ? "Nothing here yet — add your first company with the form below."
+      : "No company matches this search and filter combination.";
+    host.append(e);
+  }
+
+  document.getElementById("add-where").textContent =
+    TABS.find(t => t[0] === TAB)[1]+" · "+SECTIONS[TAB][0][1].split(" — ")[0];
+
+  count();
+  paintFooter();
+}
+
+function count(){
+  let done = 0, total = 0, hr = 0, wa = 0, fu = 0;
+  const byStage = {};
+  for(const [,,list] of rowsFor(TAB)) for(const c of list){
+    const id = idOf(c.n); total++;
+    const st = rec(id).stage;
+    byStage[st] = (byStage[st]||0)+1;
+    if(st !== "none") done++;
+    if((c.hr||[]).length) hr++;
+    wa += (c.wa||[]).length;
+    if(needsFollowUp(id)) fu++;
+  }
+  document.getElementById("c-done").textContent  = done;
+  document.getElementById("c-total").textContent = total;
+  document.getElementById("c-hr").textContent    = hr;
+  document.getElementById("c-wa").textContent    = wa;
+  document.getElementById("c-fu").textContent    = fu;
+
+  const bar = document.getElementById("bar");
+  bar.textContent = "";
+  for(const [key] of STAGES){
+    if(key === "none" || !byStage[key]) continue;
+    const s = document.createElement("span");
+    s.style.width = (byStage[key]/Math.max(total,1)*100)+"%";
+    s.style.background = STAGE_COLOR[key];
+    s.title = STAGE_LABEL[key]+": "+byStage[key];
+    bar.append(s);
+  }
+  bar.setAttribute("aria-label", done+" of "+total+" contacted");
+}
+
+function paintFooter(){
+  const f = document.getElementById("foot");
+  f.textContent = "";
+
+  const src = document.createElement("p"); src.className = "src";
+  const dot = document.createElement("span");
+  dot.className = "dot "+(SOURCE === "live" ? "live" : SOURCE === "cache" ? "cache" : "bundle");
+  src.append(dot);
+  const txt = document.createElement("span");
+  txt.textContent =
+    SOURCE === "live"  ? "Bangalore & Pune: live from the sweep, fetched "+ago(FETCHED_AT) :
+    SOURCE === "cache" ? "Bangalore & Pune: cached copy from "+ago(FETCHED_AT)+" — live fetch failed" :
+                         "Bangalore & Pune: bundled copy — no live fetch yet";
+  src.append(txt);
+  const rb = document.createElement("button");
+  rb.className = "btn small"; rb.textContent = "↻ Refresh now";
+  rb.addEventListener("click", () => { rb.textContent = "↻ Fetching…"; refresh(false).then(()=>{}); });
+  src.append(rb);
+  f.append(src);
+
+  const p = document.createElement("p");
+  p.append(document.createTextNode(
+    "Lucknow, Noida and Remote are researched and bundled — only contacts actually published on each "+
+    "company's own site are listed. Nothing is guessed: a bounce from your Gmail hurts the deliverability "+
+    "of the applications that matter. Status, notes and added companies are saved on this device only — "+
+    "use Export before switching machines."
+  ));
+  f.append(p);
+
+  const links = document.createElement("p");
+  for(const [label,href] of [["Portfolio",ME.folio],["GitHub",ME.github],["LinkedIn",ME.linkedin],["Résumé",ME.resume]]){
+    const a = document.createElement("a");
+    a.href = href; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = label; a.style.cssText = "color:var(--accent);margin-right:12px";
+    links.append(a);
+  }
+  f.append(links);
+}
+
+/* --------------------------------------------------------------- wiring -- */
+document.getElementById("sub").textContent =
+  ME.name+" · "+ME.role+" · "+ME.years+" yrs · "+ME.target;
+
+const tplBox = document.getElementById("tpl");
+tplBox.value = TPL;
+tplBox.addEventListener("input", () => { TPL = tplBox.value; store.set("tpl", TPL); render(); });
+document.getElementById("copytpl").addEventListener("click", () => copy(TPL, "Message"));
+document.getElementById("resettpl").addEventListener("click", () => {
+  TPL = DEFAULT_TPL; tplBox.value = TPL; store.set("tpl", TPL); render(); toast("Message reset");
+});
+
+const qBox = document.getElementById("q");
+qBox.addEventListener("input", () => { query = qBox.value.trim().toLowerCase(); render(); });
+
+document.getElementById("add").addEventListener("click", () => {
+  const n = document.getElementById("f-n").value.trim();
+  if(!n){ toast("Company name is required"); document.getElementById("f-n").focus(); return; }
+  const split = (id) => document.getElementById(id).value.split(",").map(s => s.trim()).filter(Boolean);
+  const key = SECTIONS[TAB][0][0];
+  const entry = {
+    n, hr:split("f-hr"), em:split("f-em"),
+    wa:split("f-wa").map(w => w.replace(/\D/g,"")).filter(Boolean),
+    li:document.getElementById("f-li").value.trim(),
+    note:document.getElementById("f-note").value.trim()
+  };
+  CUSTOM[key] = (CUSTOM[key] || []).concat([entry]);
+  store.set("custom", CUSTOM);
+  for(const id of ["f-n","f-hr","f-em","f-wa","f-li","f-note"]) document.getElementById(id).value = "";
+  render();
+  toast(n+" added");
+});
+
+document.getElementById("export").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify({
+    v:1, exported:new Date().toISOString(), state:STATE, custom:CUSTOM, tpl:TPL
+  }, null, 2)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "outreach-"+new Date().toISOString().slice(0,10)+".json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast("Exported "+Object.keys(STATE).length+" records");
+});
+
+document.getElementById("import").addEventListener("click", () => document.getElementById("file").click());
+document.getElementById("file").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let incoming;
+    try{ incoming = JSON.parse(r.result); }
+    catch(_){ toast("That file isn't valid JSON"); return; }
+    if(!incoming || typeof incoming !== "object" || !incoming.state){
+      toast("No progress found in that file"); return;
+    }
+    // Merge, newest wins — never clobber a record the import doesn't mention.
+    let n = 0;
+    for(const [id,r2] of Object.entries(incoming.state)){
+      if(!r2 || typeof r2 !== "object") continue;
+      const mine = STATE[id];
+      if(!mine || (r2.at||0) >= (mine.at||0)){ STATE[id] = r2; n++; }
+    }
+    if(incoming.custom && typeof incoming.custom === "object"){
+      for(const [k,list] of Object.entries(incoming.custom)){
+        if(!Array.isArray(list)) continue;
+        const have = new Set((CUSTOM[k]||[]).map(c => idOf(c.n)));
+        CUSTOM[k] = (CUSTOM[k]||[]).concat(list.filter(c => c && c.n && !have.has(idOf(c.n))));
+      }
+    }
+    if(typeof incoming.tpl === "string" && incoming.tpl){ TPL = incoming.tpl; tplBox.value = TPL; }
+    store.set("state", STATE); store.set("custom", CUSTOM); store.set("tpl", TPL);
+    render();
+    toast("Imported "+n+" record"+(n === 1 ? "" : "s"));
+  };
+  r.readAsText(file);
+  e.target.value = "";
+});
+
+const THEMES = [["auto","◐ Auto"],["light","☀ Light"],["dark","☾ Dark"]];
+let theme = store.get("theme") || "auto";
+function applyTheme(){
+  const btn = document.getElementById("theme");
+  if(theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+  btn.textContent = (THEMES.find(t => t[0] === theme) || THEMES[0])[1];
+}
+document.getElementById("theme").addEventListener("click", () => {
+  const i = THEMES.findIndex(t => t[0] === theme);
+  theme = THEMES[(i+1) % THEMES.length][0];
+  store.set("theme", theme); applyTheme();
+});
+applyTheme();
+
+/* ----------------------------------------------------------- boot ------- */
+DATA = Object.assign({}, BUNDLED, SEED);
+SOURCE = "bundle";
+const cached = store.get("cache");
+if(cached && cached.data){
+  Object.assign(DATA, cached.data);
+  SOURCE = "cache"; FETCHED_AT = cached.at;
+}
+render();
+refresh(true);   // always re-pull Bangalore & Pune from the live sweep
+</script>
+</body>
+</html>

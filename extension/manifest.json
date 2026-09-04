@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Pilot — Job Board Grabber",
+  "version": "1.0.0",
+  "description": "One click pulls company names, recruiter emails and phone numbers out of the job-board posts on your screen and files them into your Pilot dashboard.",
+  "permissions": ["scripting", "activeTab", "storage"],
+  "host_permissions": [
+    "https://*.linkedin.com/*",
+    "https://linkedin.com/*",
+    "https://*.naukri.com/*",
+    "https://naukri.com/*",
+    "https://*.wellfound.com/*",
+    "https://wellfound.com/*",
+    "https://*.internshala.com/*",
+    "https://internshala.com/*",
+    "https://*.indeed.com/*",
+    "https://indeed.com/*",
+    "https://pilot-78c.pages.dev/*",
+    "http://localhost/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Pilot — grab companies from this page"
+  }
+}
