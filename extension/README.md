@@ -39,9 +39,12 @@ No build step, no dependencies, nothing to compile.
 
 ## Use
 
-1. Click the toolbar icon and sign in with your **dashboard passphrase** (the
-   same one the dashboard's sign-in page asks for). The passphrase and the
-   dashboard URL are remembered in this browser profile.
+1. Click the toolbar icon and sign in with your **dashboard email and
+   passphrase** — the same pair the dashboard's own sign-in page asks for. The
+   dashboard has one account per person now, so the email is not optional: a
+   passphrase on its own is rejected with **Wrong email or passphrase.** The
+   email, the passphrase and the dashboard URL are remembered in this browser
+   profile.
 2. Go to a supported job board, run your search, and scroll so the posts you
    care about are loaded.
 3. Click the icon, then either:
@@ -51,6 +54,24 @@ No build step, no dependencies, nothing to compile.
      reopen it (or watch the toolbar badge) for the result.
 4. The popup reports **found / sent / dropped / skipped**, and the badge shows
    how many brand-new rows landed in the dashboard.
+
+### If you had the extension installed before the dashboard went multi-tenant
+
+Nothing is lost, but the extension cannot sign in until it knows your email. Your
+saved passphrase and dashboard URL are still there; the popup opens on the login
+screen with the passphrase field blank and says *"The dashboard now signs you in
+by email."* Fill in both fields once and it is back to normal. Grabs attempted in
+between fail with the same prompt rather than a bare 401.
+
+### "You have no passphrase of your own yet"
+
+The dashboard seeds the first account with **no** passphrase, and until one is
+set it accepts the deployment's `SITE_PASSWORD` instead. Signing in that way
+works, and the popup says so — but that credential is the bootstrap, not yours.
+Set a real passphrase **in the dashboard** and sign in here again with it. The
+extension will not set one for you: it has no screen for confirming a new
+passphrase, and a typo made in a 320px popup would lock you out of the dashboard
+itself.
 
 ## What it sends
 
@@ -85,9 +106,16 @@ emails, the phones and a location, then posts:
 
 ## The session-cookie caveat (read this if grabs 401)
 
-The dashboard has no bearer token. `POST /api/login` answers a correct
-passphrase with a **302** and a `session` cookie marked `HttpOnly; Secure;
-SameSite=Strict`. `HttpOnly` means the extension can never read the cookie, and
+The dashboard has no bearer token. `POST /api/login` takes
+`{"email", "password"}` and answers a correct pair with a `session` cookie marked
+`HttpOnly; Secure; SameSite=Strict` — **200** and a JSON body
+(`{"ok", "user_id", "must_set_password"}`) for the extension's JSON request, a
+**302** for the dashboard's own HTML form. A wrong pair is a **401** carrying the
+API's own wording, which the popup shows verbatim so the two sign-in screens
+never contradict each other. The extension accepts the 302 as success too, so a
+dashboard deployed before the JSON reply existed still works.
+
+`HttpOnly` means the extension can never read the cookie, and
 `SameSite=Strict` means Chrome may refuse to attach it to a request whose
 initiator is `chrome-extension://…` — whether it does depends on the Chrome
 version. That is a real limitation of this approach, not something the extension
@@ -116,10 +144,13 @@ instead of half-failing.
 - The dashboard URL defaults to `https://pilot-78c.pages.dev`. Point it at
   `http://localhost:8788` for `wrangler pages dev` (both are pre-authorised in
   the manifest); any other URL triggers a one-time Chrome permission prompt.
-- The passphrase is kept in `chrome.storage.local` — unavoidable, since the
-  session cookie is unreadable and the background grab has to be able to
-  re-authenticate on its own. Treat the browser profile as trusted, and sign out
-  from the popup to erase it.
+- The email (`email`) and passphrase (`passphrase`) are kept in
+  `chrome.storage.local` alongside `serverUrl` — unavoidable, since the session
+  cookie is unreadable and the background grab has to be able to re-authenticate
+  on its own. Treat the browser profile as trusted, and sign out from the popup
+  to erase the passphrase. **Sign out leaves the email**, the same way it has
+  always left the dashboard URL: it is not the secret, and keeping it means the
+  next sign-in is one field instead of two.
 
 ## Honest limits
 

@@ -4,12 +4,14 @@
  *  WhatsApp and the email link, which forced one compromise message: WhatsApp
  *  wants two short lines and has no subject, email wants a subject and can
  *  carry a real pitch. They are stored separately now, one settings row per
- *  channel field.
+ *  channel field — and, since 010 keyed `settings` by (profile_id, key), one
+ *  such set of rows per profile.
  *
  *  The legacy key is still read on GET so nobody's existing message disappears
  *  the moment this ships — see MIGRATION below.
  */
 import { json, badRequest } from "../lib/db.js";
+import { resolveProfileId } from "../lib/profile.js";
 
 const KEYS = {
   emailSubject: "tpl_email_subject",
@@ -30,12 +32,22 @@ const DEFAULT_EMAIL_SUBJECT = "Full-stack / AI developer (2 yrs, React · Node) 
 const MAX_LEN = 4000;
 
 export async function onRequestGet(context) {
-  const { env } = context;
+  const { request, env } = context;
+  const url = new URL(request.url);
+
+  // Templates are per-profile since 010 — the same key now exists once per
+  // profile, so reading without this predicate would hand back whichever row
+  // SQLite happened to reach first, i.e. another tenant's message.
+  const profile = await resolveProfileId(env, url, null, context.data.userId);
+  if (profile.error) return json({ error: profile.error }, { status: profile.status });
+
   const wanted = [...Object.values(KEYS), LEGACY_KEY];
-  const placeholders = wanted.map((_, i) => `?${i + 1}`).join(",");
+  // ?1 is the profile, so the key placeholders start at ?2 and the binds are
+  // pushed along by one to match.
+  const placeholders = wanted.map((_, i) => `?${i + 2}`).join(",");
   const { results } = await env.DB
-    .prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`)
-    .bind(...wanted)
+    .prepare(`SELECT key, value FROM settings WHERE profile_id = ?1 AND key IN (${placeholders})`)
+    .bind(profile.id, ...wanted)
     .all();
 
   const stored = new Map((results || []).map((r) => [r.key, r.value]));
@@ -75,10 +87,14 @@ export async function onRequestGet(context) {
 
 export async function onRequestPut(context) {
   const { request, env } = context;
+  const url = new URL(request.url);
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return badRequest("expected { email:{subject,body}, whatsapp:{body}, linkedin:{body} }");
   }
+
+  const profile = await resolveProfileId(env, url, body, context.data.userId);
+  if (profile.error) return json({ error: profile.error }, { status: profile.status });
 
   // Partial updates are the normal case — the settings UI saves the channel
   // being edited — so an absent channel or field leaves its row untouched
@@ -104,12 +120,16 @@ export async function onRequestPut(context) {
 
   if (!updates.length) return badRequest("no template fields to save");
 
+  // The ON CONFLICT target has to name the full primary key (profile_id, key)
+  // that 010 introduced: on `key` alone it no longer matches an index and the
+  // statement fails outright, and were it to match it would clobber the row
+  // another profile owns.
   await env.DB.batch(updates.map(([key, value]) => env.DB.prepare(`
-    INSERT INTO settings (key, value) VALUES (?1, ?2)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).bind(key, value)));
+    INSERT INTO settings (profile_id, key, value) VALUES (?1, ?2, ?3)
+    ON CONFLICT(profile_id, key) DO UPDATE SET value = excluded.value
+  `).bind(profile.id, key, value)));
 
-  return json({ ok: true, saved: updates.map(([key]) => key) });
+  return json({ ok: true, profile_id: profile.id, saved: updates.map(([key]) => key) });
 }
 
 const str = (v) => (v == null ? "" : String(v));

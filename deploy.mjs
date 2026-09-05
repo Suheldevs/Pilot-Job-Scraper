@@ -104,10 +104,18 @@ for (const key of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"]) {
 // Collect the secret VALUES so we can prove none of them ship.
 const SECRET_VALUES = [env.CLOUDFLARE_API_TOKEN, env.CLOUDFLARE_ACCOUNT_ID];
 const genPath = path.join(ROOT, TARGET.secrets);
+// Keys in the secrets file whose value is NOT a credential, so they must not
+// join SECRET_VALUES. SITE_EMAIL is one: it is the address the owner signs in
+// with, migration 010 seeds it from profile 1's `email` column, and index.html
+// and README already publish it. Screening the bundle for it would abort every
+// deploy on a string the site is meant to carry, and a scanner that cries wolf
+// on a non-secret is one people learn to route around. The passphrase it is
+// paired with is still screened for, unchanged.
+const NON_SECRET_KEYS = new Set(["SITE_EMAIL"]);
 if (fs.existsSync(genPath)) {
   for (const line of fs.readFileSync(genPath, "utf8").split(/\r?\n/)) {
     const m = /^([A-Z_]+)=(.+)$/.exec(line.trim());
-    if (m && m[2].length > 6) SECRET_VALUES.push(m[2]);
+    if (m && m[2].length > 6 && !NON_SECRET_KEYS.has(m[1])) SECRET_VALUES.push(m[2]);
   }
 }
 ok(`token + account id loaded (${SECRET_VALUES.length} secret values will be screened for)`);
@@ -305,30 +313,51 @@ await new Promise((r) => setTimeout(r, 4000));
 // Read the passphrase by key, not by shape — it was matched with a
 // word-word-NNNN pattern before, which silently skipped every authenticated
 // check the moment the passphrase was changed to something else.
-let pw = "";
-if (fs.existsSync(genPath)) {
-  const m = /^SITE_PASSWORD=(.+)$/m.exec(fs.readFileSync(genPath, "utf8"));
-  if (m) pw = m[1].trim();
-}
+const secretsText = fs.existsSync(genPath) ? fs.readFileSync(genPath, "utf8") : "";
+const readSecretKey = (key) => {
+  const m = new RegExp(`^${key}=(.+)$`, "m").exec(secretsText);
+  return m ? m[1].trim() : "";
+};
+const pw = readSecretKey("SITE_PASSWORD");
+// Login is per-user since migration 010, so a passphrase on its own identifies
+// nobody. JO_EMAIL is the fallback because a CI box keeps the address in its
+// environment rather than in a file that is deliberately not committed.
+const loginEmail = readSecretKey("SITE_EMAIL") || env.JO_EMAIL || "";
 try {
   let r = await fetch(SITE + "/", { redirect: "manual" });
   const body = await r.text();
-  check("unauth root serves the login page", r.status === 200 && body.includes("Sign in"));
+  // "Sign in" is still the button label and the title on the login page in
+  // functions/_middleware.js, so the original assertion stands. The email field
+  // is asserted alongside it: the page grew one when login became per-user, and
+  // a deployment still serving the passphrase-only form is one where the whole
+  // ownership check downstream has nothing to identify the caller by.
+  const hasEmailField = /name="email"/.test(body);
+  check("unauth root serves the login page", r.status === 200 && body.includes("Sign in") && hasEmailField,
+    `HTTP ${r.status}, email field ${hasEmailField ? "present" : "MISSING"}`);
 
   r = await fetch(SITE + "/api/companies");
   check("unauth API is refused", r.status === 401, `HTTP ${r.status}`);
 
-  if (!pw) {
-    warn("no passphrase found in .secrets-generated.txt — skipping authenticated checks");
+  const missingCreds = [!loginEmail && "SITE_EMAIL (or a JO_EMAIL env var)", !pw && "SITE_PASSWORD"].filter(Boolean);
+  if (missingCreds.length) {
+    // Same posture as before: a deploy is not failed over a missing local
+    // credential. The upload already succeeded and the unauthenticated checks
+    // above still ran; only the signed-in half is skipped, and loudly.
+    warn(`${missingCreds.join(" and ")} not found for ${TARGET_NAME} (${TARGET.secrets}) — skipping authenticated checks`);
   } else {
     r = await fetch(SITE + "/api/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: pw }),
+      body: JSON.stringify({ email: loginEmail, password: pw }),
       redirect: "manual",
     });
+    // A JSON login answers 200 with a body since 010 — push.py and the
+    // extension read the cookie off the response and cannot follow a redirect
+    // into dashboard HTML. 302 is still tolerated so this does not report a
+    // false failure against an edge that has not picked up the new Worker yet.
     const tok = (/session=([^;]+)/.exec(String(r.headers.get("set-cookie"))) || [])[1];
-    check("login issues a session cookie", Boolean(tok));
+    check("login issues a session cookie", (r.status === 200 || r.status === 302) && Boolean(tok),
+      `HTTP ${r.status}`);
 
     if (tok) {
       const H = { Cookie: "session=" + tok };

@@ -10,8 +10,9 @@ There are two live deployments:
 `main` is the system in daily use. `clone` is the profile-system build, its D1
 seeded from an export of `main`. This harness asks both the same questions and
 compares the answers, then checks a set of invariants against each one on its
-own. It logs in the same way `deploy.mjs` does — the passphrase is read out of
-the target's secrets file by key, and a secret value is never printed.
+own. It logs in the same way `deploy.mjs` does — the sign-in email and the
+passphrase are read out of the target's secrets file by key, and a secret value
+is never printed.
 
 ## How to run
 
@@ -28,6 +29,52 @@ Read-only by default: with no `--allow-writes` nothing is written to either
 deployment, and the summary says so. `--allow-writes` is refused against `main`
 unconditionally — the writable flag lives in the `TARGETS` table, not in a
 command-line argument.
+
+## Credentials
+
+Read by key from the selected target's secrets file — `.secrets-generated.txt`
+for `main`, `.secrets-78d.txt` for `clone` — one `KEY=value` per line.
+
+| Key | Required | What it is |
+| --- | --- | --- |
+| `SITE_EMAIL` | yes | The address to sign in with. `POST /api/login` takes `{email, password}` since migration 010, so a passphrase on its own identifies nobody and every authenticated check would skip without this. Falls back to the `JO_EMAIL` environment variable. |
+| `SITE_PASSWORD` | yes | The passphrase for that address. On a deployment that has just applied 010 this is still the *bootstrap* credential: the seeded owner has an empty `pw_hash` and `SITE_PASSWORD` is accepted for that one user until a real password is set, after which this must be the real password. |
+| `SECOND_EMAIL` | no | A second real account on the same deployment. Falls back to `JO_SECOND_EMAIL`. |
+| `SECOND_PASSWORD` | no | Its passphrase. Falls back to `JO_SECOND_PASSWORD`. |
+
+`deploy.mjs` reads the same two required keys, from the same file, the same way.
+
+**An email address is not screened as a secret.** `SITE_EMAIL` and
+`SECOND_EMAIL` are excluded from the values the "carries no secret" checks
+screen live responses for, here and in `deploy.mjs`. The address is the owner's
+own, migration 010 seeds it from profile 1's `email` column, and `index.html`
+and `README.md` already publish it — screening for it would report the site's
+own content as a leaked credential on every run, and a scanner that cries wolf
+on a non-secret is one people learn to route around. Both passphrases are
+screened for exactly as before.
+
+### Configuring a second account
+
+The tenancy-isolation checks need a second tenant to be about anything. To
+create one, signed in as the owner (who is an admin):
+
+1. `POST /api/users` with `{"email": "...", "name": "...", "password": "..."}`.
+   Admin only, and the password floor is 12 characters. Omitting the password
+   creates an account that cannot sign in — set one via
+   `POST /api/user/password` if you do.
+2. Sign in as that account and give it a profile of its own:
+   `POST /api/profiles` with `{"name": "second tenant"}`. `owner_user_id` is
+   stamped from the session and never from the body, so the profile belongs to
+   whoever posted it. `copy_from` will not work here — cloning requires owning
+   the source, which is the point.
+3. Put the two values in the target's secrets file as `SECOND_EMAIL=` and
+   `SECOND_PASSWORD=`.
+
+For the `/similar` check to have rows to look at, that second profile also has
+to be *similar*: `match_keywords`, `cities` and the experience band have to
+overlap the parent's enough to clear the 0.6 threshold in
+`PROFILE-CONTRACT.md`. A second profile with unrelated targeting is still
+enough for every other check in the section.
 
 ## Exit codes
 
@@ -70,7 +117,11 @@ These must hold whatever the other deployment says.
 | --- | --- |
 | unauthenticated `GET /api/companies` is 401 | The auth wall in `functions/_middleware.js` is off. Every lead, contact email and phone number is public. Stop and fix before anything else. |
 | unauthenticated `GET /` serves the login page | Same wall, HTML side. A redirect loop or a raw `index.html` here means the dashboard is served to anyone. |
+| JSON login returns 200 with a session cookie | A 302 means the JSON branch of `/api/login` is gone. `push.py` and the browser extension read the cookie off the response and cannot follow a redirect into dashboard HTML, so both stop being able to sign in. |
+| second account signs in | Only runs when `SECOND_EMAIL`/`SECOND_PASSWORD` are set, and it *fails* rather than skips when they are: the tenancy checks below would otherwise report "not configured", which would be untrue and would hide the real problem. |
 | wrong password is 401 and issues no cookie | Either the passphrase check is bypassable, or a session cookie is minted before the password is verified. |
+| wrong email with the correct passphrase is 401 and issues no cookie | The email half is a credential too since 010. A pass with the correct passphrase and an address that owns nothing means the handler verified the password against whatever row it found first, or against `SITE_PASSWORD` without checking *which* user asked. The bootstrap fallback makes that a live risk — `SITE_PASSWORD` really is accepted, for exactly one user, and "for exactly one user" is the clause a refactor can drop without anything else looking different. |
+| a session with no `uid` claim (pre-010 shape) is refused | A cookie minted when one passphrase opened every profile still opens the API, so the upgrade did not actually close the ambient-access hole. **What this proves is narrower than it reads:** the harness cannot sign a token — `SESSION_SECRET` lives in the Cloudflare environment, not in any file it can read — so it presents an unsigned token carrying a `{exp}`-only payload. A pass means that shape gets nothing; it does not on its own separate the signature check from the `uid` check in `functions/lib/auth.js`. |
 | every row has a `tab` from `blr/pune/lko/noida/rem` | A row exists that no tab in the UI will ever render — it is in the database and invisible. Usually a scraper writing an unclassified location. |
 | every `grade` is empty or `A`/`B`/`C`/`D` | The grade column took a value the UI cannot style or filter on. Bad ids are listed with their actual values. |
 | `hr`/`em`/`wa` are always arrays | A JSON column holds something that is not an array, and `safeArray()` in `functions/lib/db.js` silently degraded it to `[]` — meaning contacts have been lost, not just mis-shaped. |
@@ -123,33 +174,71 @@ One note on the write path: profile ids come from an `AUTOINCREMENT` column, so
 each writing run consumes an id permanently. That is cosmetic — nothing depends
 on profile ids being contiguous.
 
+### The tenancy-isolation invariants
+
+> A profile the caller does not own must not be reachable, and nothing that
+> identifies its owner may reach the caller.
+
+Migration 010 turned `?profile_id=` from a view filter into an authorisation
+decision. Before it, one passphrase opened the site and any valid cookie plus
+any `N` read that profile's board, stages, notes and analytics. That is the
+class of bug this suite exists to catch, and it is the reason these checks probe
+several endpoints rather than one: `resolveProfileId` is the single chokepoint,
+so the failure that matters is a *handler* that resolves a profile without
+passing a user id, and a green `/api/companies` says nothing about the other
+nine.
+
+All of these are read-only and none of them needs `--allow-writes`.
+
+| Check | A failure means |
+| --- | --- |
+| `?profile_id=` for a profile the caller does not own never answers 200 | Probes every id from 1 up to three past the highest the caller's own listing returned, minus the ones they own, against `/api/companies`, `/api/analytics` and `/api/export`. 403 (someone else's) and 404 (no such profile) are both correct refusals — only a 200 is a finding, and a 200 here is the pre-010 hole, open. Needs no second account. |
+| another user's profile is 403 on every profile-scoped endpoint | Aimed at a profile that provably belongs to the second account, so 403 is the *only* right answer: 404 would mean the row vanished between two reads and 200 is ambient access. Covers the same three endpoints plus `/api/profile/:id`, which goes through `assertProfileOwner` rather than `resolveProfileId` — a second door onto the same question. |
+| `GET /api/profiles` lists only the caller's own profiles | Compares the two accounts' listings for a shared id. An overlap means the listing is not scoped by owner, and every row it returned carries the identity fields `rowToProfile` fills in — email, phone, linkedin, resume_url — for somebody who is not the caller. |
+| `/similar` carries no identity field on any row | `PROFILE-CONTRACT.md` pins the response to `{id, similarity, shared_leads, owned}` plus `name` on an owned row. Checked on *every* row rather than only the unowned ones: a handler that started spreading the whole profile row would leak on both branches, and on a single-account deployment the owned rows are the only ones there to notice it on. |
+| `/similar` returns no `name` for a profile the caller does not own | `name` is the sharpest identifier on the row — profiles are named after people — so returning it turns the one endpoint that deliberately looks across tenants into a directory any signed-in tenant can enumerate. |
+
+**What skips without a second account, and why.** Three of the five need a real
+second tenant, and they skip rather than pass: with one account every row in
+`profiles` belongs to the caller, so "nothing leaked between tenants" would be
+true for want of a second tenant, not because anything was proved. A check that
+cannot fail is worse than no check, because it reads green.
+
+| Check | Skips when |
+| --- | --- |
+| another user's profile is 403 … | `SECOND_EMAIL`/`SECOND_PASSWORD` are unset, the second account owns no profiles, or its listing could not be read. A *configured* account that fails to sign in is a failure in section 1, not a silent skip here. |
+| `GET /api/profiles` lists only the caller's own | Same conditions. |
+| `/similar` returns no `name` for an unowned profile | No row in the response has `owned: false` — either no second tenant exists, or their profile is not similar enough to clear the 0.6 threshold. |
+| `?profile_id=` … never answers 200 | Never. The three-id lookahead past the caller's highest profile is unowned by construction, so there is always something to ask for — this one has teeth on a single-account deployment. |
+
+Every one of them also skips with **"not present on this target"** against
+`main`, along with the rest of this section.
+
 ## Current status
 
-As of the last run, against both live deployments:
+The counts below are from the last run before multi-tenancy landed and have
+**not** been re-measured. The suite needs a live deployment, and the login
+contract it exercises changed underneath these numbers — read them as the shape
+of a good run, not as today's.
 
 ```
 35 passed  0 failed  5 skipped        # node regression.mjs
 ```
 
-The five skips are the four clone-only checks against `main` (correctly not
-present) plus progress-isolation on the clone (only one profile exists, so the
-read-only form is vacuous).
+Those five skips were the four clone-only checks against `main` (correctly not
+present) plus progress-isolation on the clone (only one profile existed, so the
+read-only form was vacuous). The tenancy-isolation checks added since will skip
+too until a second account is configured, on top of those.
 
-**The writing form of progress-isolation fails today, and it is a real finding,
-not a harness problem:**
+**The progress-isolation failure this section used to record has been closed by
+the work it called for.** Migration `008-progress-per-profile.sql` rekeyed
+`progress` on `(profile_id, company_id)`, `011-lead-notes.sql` moved the lead
+note off the shared `companies.note` onto `progress.lead_note`, and
+`functions/api/progress/[id].js` resolves a profile on both verbs. The writing
+form of the check should now pass on its own. **Do not loosen it** — it is the
+only thing standing between that composite key and a future refactor that
+quietly drops the `profile_id` half of it.
 
-```
-node regression.mjs --target=clone --allow-writes
-FAIL  clone: progress does not leak between profiles
-      (stage set to "contacted" under profile 1; profile 3 sees HTTP 200
-       stage=contacted (expected 404 or "none"))
-```
-
-`progress` is keyed on `company_id` alone — `PRIMARY KEY` in `schema.sql`, with
-no `profile_id` column in any migration — and `functions/api/progress/[id].js`
-ignores profile context entirely. So a stage set under one profile is visible
-under every profile. That contradicts `PROFILE-CONTRACT.md` and it is what the
-in-flight profile-scoping work has to close: `progress` needs a composite key of
-`(profile_id, company_id)`, and the progress endpoints need to resolve a profile.
-Until then this check is expected to fail under `--allow-writes`, and it will
-turn green on its own once the scoping lands. **Do not loosen it.**
+Expect the first run against a deployment that has not applied `010-users.sql`
+to fail at login rather than anywhere interesting: there is no `users` table for
+`/api/login` to look an address up in, so nothing downstream gets a session.

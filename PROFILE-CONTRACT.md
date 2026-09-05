@@ -184,6 +184,78 @@ JSON in and out uses **real arrays**, never JSON strings — parse on read,
 stringify on write, exactly how `hr`/`em`/`wa` are already handled in
 `functions/lib/db.js`.
 
+## Users and tenancy
+
+Added by migration 010. Before it there was no user: one `SITE_PASSWORD` opened
+the site and the session payload was `{exp}`, so any holder of a cookie could
+read any profile by passing `?profile_id=`. Profiles were a view filter, not a
+boundary.
+
+```sql
+CREATE TABLE users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT NOT NULL,        -- UNIQUE on lower(email)
+  name          TEXT NOT NULL DEFAULT '',
+  pw_hash       TEXT NOT NULL DEFAULT '',  -- '' = no password set, never verifies
+  is_admin      INTEGER NOT NULL DEFAULT 0,
+  created_at    INTEGER NOT NULL,
+  last_login_at INTEGER,
+  session_epoch INTEGER NOT NULL DEFAULT 0
+);
+ALTER TABLE profiles ADD COLUMN owner_user_id INTEGER NOT NULL DEFAULT 1;
+```
+
+**One user owns many profiles.** The same person targeting two different roles is
+the normal case, so this is deliberately not 1:1. Every profile that existed
+before 010 belongs to user 1, the parent.
+
+### The three rules
+
+1. **Ownership is checked in exactly one place.** `resolveProfileId` in
+   `functions/lib/profile.js` is the chokepoint every profile-scoped handler
+   already routed through, so the check lives there and not in ten handlers. It
+   **fails closed**: a missing `userId` is a 401, never a fallback to the old
+   existence-only behaviour. `assertProfileOwner` is the same check for handlers
+   that name a profile in the path rather than the query string.
+
+2. **Identity never crosses a tenant.** `rowToProfile` carries `email`, `phone`,
+   `linkedin`, `github`, `portfolio`, `resume_url` and `notice_period`. Any
+   endpoint that can return a profile the caller does not own must return the id
+   and nothing that identifies its owner — see `/similar`, which returns
+   `{id, similarity, shared_leads, owned}` and adds `name` only when `owned`.
+
+3. **Leads cross; what you wrote about them does not.** Adoption shares
+   `companies` rows through `profile_companies` and nothing else. `progress` and
+   `stage_history` stay keyed `(profile_id, company_id)` from 008, and migration
+   011 moved the lead note off the shared `companies.note` onto
+   `progress.lead_note` for the same reason. Sharing a lead must never mean
+   sharing your note on it.
+
+Cross-tenant adoption is intentional, not a leak: it is the whole point. A new
+tenant whose targeting matches an existing one adopts their leads instead of
+re-running the scrape, and re-scraping is what gets this project rate-limited by
+LinkedIn and Naukri.
+
+### Sessions
+
+HMAC-signed and stateless — there is no session table. The payload is
+`{uid, ep, exp}`, where `ep` is the user's `session_epoch` when the token was
+minted. `_middleware.js` refuses a token whose `ep` is behind the row's, so
+bumping `session_epoch` is a per-user "sign out everywhere" — which is what lets
+a password change revoke the sessions it was prompted by. Rotating
+`SESSION_SECRET` is the only other lever and it signs out everyone at once.
+
+Tokens minted before 010 carry no `uid` and are rejected: the upgrade signs
+everyone out once, deliberately, rather than honouring cookies issued when one
+passphrase opened every profile.
+
+### Known gap
+
+There is still **no rate limiting on `/api/login`**. It belongs in a Cloudflare
+rate-limiting rule on that path, not in a D1 write per attempt — that would put a
+write on the unauthenticated path, which is exactly what an attacker would want
+to amplify.
+
 ## Per-source scheduling
 
 Sources currently all run on one 6-hour clock, which is wrong in both

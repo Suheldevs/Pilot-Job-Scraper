@@ -145,6 +145,8 @@
 
     <!-- LOGIN -->
     <div id="loginView" class="body hidden">
+      <label for="email">Dashboard email</label>
+      <input id="email" type="email" spellcheck="false" placeholder="you@example.com" autocomplete="off" />
       <label for="passphrase">Dashboard passphrase</label>
       <input id="passphrase" type="password" placeholder="Passphrase" autocomplete="off" />
       <label for="serverUrl">Dashboard URL</label>
@@ -152,8 +154,9 @@
       <button id="loginBtn" class="primary">Sign in</button>
       <div id="loginMsg"></div>
       <p class="hint">
-        Same passphrase as the dashboard's sign-in page. It is stored in this
-        browser profile so the extension can re-authenticate on its own.
+        Same email and passphrase as the dashboard's sign-in page - the dashboard
+        now has one account per person, so both are required. They are stored in
+        this browser profile so the extension can re-authenticate on its own.
       </p>
     </div>
 

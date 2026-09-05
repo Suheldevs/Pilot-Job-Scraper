@@ -9,6 +9,17 @@
  *  GET    /api/events?limit&run_id&kind&status&since
  *  DELETE /api/events?days=30                      evict old rows
  *
+ *  Deliberately NOT profile-scoped, unlike every other reader in this app. A
+ *  row here describes the scrape process itself — which source returned
+ *  nothing, which layer dropped everything, how long the push took — and the
+ *  scraper has no profile dimension to record: one unattended run collects for
+ *  the whole database, and neither main.py nor events.py knows what a profile
+ *  is. `events` has no `profile_id` column for that reason (008 added one to
+ *  `progress` and `stage_history` and pointedly not to this table), so
+ *  `resolveProfileId` is not called here. Scoping it would invent a dimension
+ *  the data does not have and hide an infrastructure failure from whoever
+ *  happened to be looking at the wrong board.
+ *
  *  Auth is already handled by functions/_middleware.js for every /api/* route,
  *  so nothing here re-checks it.
  */

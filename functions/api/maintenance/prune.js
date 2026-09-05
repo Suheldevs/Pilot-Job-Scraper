@@ -74,13 +74,14 @@ function parseDays(raw) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const userId = context.data.userId;
   const url = new URL(request.url);
   const body = await request.json().catch(() => ({}));
 
   const { days, error } = parseDays(body.days);
   if (error) return badRequest(error);
 
-  const profile = await resolveProfileId(env, url, body);
+  const profile = await resolveProfileId(env, url, body, userId);
   if (profile.error) return json({ error: profile.error }, { status: profile.status });
 
   const cutoff = Date.now() - days * 86400000;
@@ -117,12 +118,13 @@ export async function onRequestPost(context) {
 /** GET returns the same list without deleting — used by the dashboard preview. */
 export async function onRequestGet(context) {
   const { request, env } = context;
+  const userId = context.data.userId;
   const url = new URL(request.url);
 
   const { days, error } = parseDays(url.searchParams.get("days"));
   if (error) return badRequest(error);
 
-  const profile = await resolveProfileId(env, url);
+  const profile = await resolveProfileId(env, url, null, userId);
   if (profile.error) return json({ error: profile.error }, { status: profile.status });
 
   const cutoff = Date.now() - days * 86400000;

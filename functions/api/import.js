@@ -24,11 +24,12 @@ const SECTION_TO_TAB = {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const userId = context.data.userId;
   const url = new URL(request.url);
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object") return badRequest("invalid JSON");
 
-  const profile = await resolveProfileId(env, url, body);
+  const profile = await resolveProfileId(env, url, body, userId);
   if (profile.error) return json({ error: profile.error }, { status: profile.status });
   const pid = profile.id;
 
@@ -47,6 +48,10 @@ export async function onRequestPost(context) {
     if (!name || !tab) return;
     const id = companyId(tab, name);
 
+    // `note` is still written to `companies` even though 011 left that column
+    // write-dead and nothing reads it back: the column was kept precisely so old
+    // export files keep importing, and this is the write it was kept for. The
+    // copy the board actually renders is the `progress.lead_note` one below.
     statements.push(env.DB.prepare(`
       INSERT INTO companies (id, tab, section, name, li, hr, em, wa, land, note, job_url, job_title, source, scraped_from, created_at, profile_id)
       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
@@ -61,10 +66,25 @@ export async function onRequestPost(context) {
       // owned by profile 2 to show up there.
       pid
     ));
+    // The file's `note` is the LEAD note, so this row is where it has to land.
+    // Restoring it into `companies.note` alone — all this statement's seed did
+    // before — put the text in a column no reader has looked at since 011, so a
+    // restored backup came back with every note blank while the data was sitting
+    // right there in the database.
+    //
+    // DO UPDATE rather than the old DO NOTHING, because a re-import onto a board
+    // that already has the lead is the normal case, and DO NOTHING meant the note
+    // only ever restored for companies this profile had never seen. Guarded on a
+    // non-empty incoming note exactly as the manual add is: an entry that carries
+    // no note must not blank one the user has typed since the export was taken.
+    // `stage`, the stage note and `updated_at` stay untouched here — progressUpsert
+    // below owns those, and it merges them newest-wins rather than seeding them.
     statements.push(env.DB.prepare(`
-      INSERT INTO progress (profile_id, company_id, stage, note, updated_at) VALUES (?1,?2,'none','',?3)
-      ON CONFLICT(profile_id, company_id) DO NOTHING
-    `).bind(pid, id, now));
+      INSERT INTO progress (profile_id, company_id, stage, note, updated_at, lead_note)
+      VALUES (?1,?2,'none','',?3,?4)
+      ON CONFLICT(profile_id, company_id) DO UPDATE SET lead_note = excluded.lead_note
+        WHERE excluded.lead_note <> ''
+    `).bind(pid, id, now, typeof c.note === "string" ? c.note : ""));
     companiesAdded++;
 
     if (c.stage && VALID_STAGES.includes(c.stage) && c.stage !== "none") {
@@ -125,10 +145,19 @@ export async function onRequestPost(context) {
   const template = typeof body.template === "string" ? body.template
                  : typeof body.tpl === "string" ? body.tpl : null;
   if (template) {
+    // The template lands on the profile this import is being written into, for
+    // the same reason its companies and stages do: since 010 `settings` is keyed
+    // (profile_id, key), so one `template` row exists per profile and an
+    // unstamped INSERT would drop this file's message onto profile 1 — whoever
+    // that is — instead of onto the importer's own board.
+    //
+    // The conflict target has to name the full composite key: on `key` alone it
+    // matches no index and the statement fails outright, and matching would be
+    // worse still, because it would overwrite the row another profile owns.
     statements.push(env.DB.prepare(`
-      INSERT INTO settings (key, value) VALUES ('template', ?1)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `).bind(template));
+      INSERT INTO settings (profile_id, key, value) VALUES (?1, 'template', ?2)
+      ON CONFLICT(profile_id, key) DO UPDATE SET value = excluded.value
+    `).bind(pid, template));
   }
 
   for (let i = 0; i < statements.length; i += 80) {

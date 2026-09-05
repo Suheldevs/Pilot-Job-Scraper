@@ -1,12 +1,23 @@
 /** GET    /api/profile/:id  — one profile, JSON arrays parsed to real arrays
  *  PUT    /api/profile/:id  — update; bumps `version` iff targeting changed
  *  DELETE /api/profile/:id  — refused for the default, and while it owns leads
+ *
+ *  Every handler here addresses one profile by id, so every one of them is the
+ *  hole 010 describes: before ownership existed, any valid cookie plus any id
+ *  read or rewrote that profile. `assertProfileOwner` runs FIRST in all three —
+ *  before the body is parsed, before any count is taken — so a caller learns
+ *  nothing from timing or from an error message about a profile that is not
+ *  theirs. It answers 404 for "no such profile" and 403 for "not yours", which
+ *  does distinguish existence; that is deliberate, since ids are sequential and
+ *  already guessable, and a plain 404 everywhere would make a real
+ *  mistyped-id bug indistinguishable from a permissions one.
  */
 import { json, badRequest, notFound } from "../../lib/db.js";
 import {
   rowToProfile,
   coerceField,
   targetingChanged,
+  assertProfileOwner,
   WRITABLE_FIELDS,
   parseId,
 } from "../../lib/profile.js";
@@ -15,6 +26,11 @@ export async function onRequestGet(context) {
   const { env, params } = context;
   const id = parseId(params.id);
   if (!id) return badRequest("invalid profile id");
+
+  // An admin may inspect any profile: DELETE below lets them remove one, and
+  // being able to read what you are about to delete is the lesser power.
+  const owner = await assertProfileOwner(env, id, context.data.userId, context.data.user?.is_admin);
+  if (owner.error) return json({ error: owner.error }, { status: owner.status });
 
   const row = await env.DB.prepare(`
     SELECT p.*,
@@ -40,6 +56,13 @@ export async function onRequestPut(context) {
   const { request, env, params } = context;
   const id = parseId(params.id);
   if (!id) return badRequest("invalid profile id");
+
+  // NOT admin-bypassed, on purpose. Editing a profile rewrites the identity
+  // and targeting its owner sends outreach under; that is impersonation, not
+  // administration. An admin who must change someone's profile can delete it
+  // or be given ownership — both are visible acts, unlike a silent edit.
+  const owner = await assertProfileOwner(env, id, context.data.userId);
+  if (owner.error) return json({ error: owner.error }, { status: owner.status });
 
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -110,6 +133,12 @@ export async function onRequestDelete(context) {
   const { env, params } = context;
   const id = parseId(params.id);
   if (!id) return badRequest("invalid profile id");
+
+  // Admin-bypassed: removing a departed tenant's profile is exactly the job
+  // an administrator exists for. The refusals below (default profile, still
+  // owns leads) still apply to them — they guard data, not ownership.
+  const owner = await assertProfileOwner(env, id, context.data.userId, context.data.user?.is_admin);
+  if (owner.error) return json({ error: owner.error }, { status: owner.status });
 
   const existing = await env.DB.prepare("SELECT * FROM profiles WHERE id = ?1").bind(id).first();
   if (!existing) return notFound("profile not found");
