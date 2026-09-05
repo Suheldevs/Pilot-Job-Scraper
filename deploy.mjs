@@ -307,8 +307,13 @@ const fail = [];
 const check = (name, cond, detail = "") =>
   (cond ? pass : fail).push(name + (detail ? ` ${C.d}(${detail})${C.x}` : ""));
 
-// Give the edge a moment to pick up the new Worker.
-await new Promise((r) => setTimeout(r, 4000));
+// Give the edge a moment to pick up the new Worker. A single fixed wait is not
+// enough: the production alias can still be answering from the previous
+// deployment seconds after wrangler reports success, and how long that takes
+// varies per project — one target passed this check on the first try while the
+// other reported a MISSING email field for a deployment that was in fact
+// correct. A false failure here is worse than a slow one, because it sends you
+// hunting a bug in code that already deployed fine, so poll instead.
 
 // Read the passphrase by key, not by shape — it was matched with a
 // word-word-NNNN pattern before, which silently skipped every authenticated
@@ -323,9 +328,24 @@ const pw = readSecretKey("SITE_PASSWORD");
 // nobody. JO_EMAIL is the fallback because a CI box keeps the address in its
 // environment rather than in a file that is deliberately not committed.
 const loginEmail = readSecretKey("SITE_EMAIL") || env.JO_EMAIL || "";
+/** Fetch the root until it looks like the deployment we just uploaded, or the
+ *  budget runs out. Returns the last response either way, so a genuine failure
+ *  still reports the real body rather than a timeout. */
+async function fetchRootWhenLive(totalMs = 45000, everyMs = 3000) {
+  const deadline = Date.now() + totalMs;
+  let last;
+  for (;;) {
+    last = await fetch(SITE + "/", { redirect: "manual" });
+    const text = await last.text();
+    if (last.status === 200 && /name="email"/.test(text)) return { r: last, body: text };
+    if (Date.now() >= deadline) return { r: last, body: text };
+    await new Promise((res) => setTimeout(res, everyMs));
+  }
+}
+
 try {
-  let r = await fetch(SITE + "/", { redirect: "manual" });
-  const body = await r.text();
+  const { r: rootRes, body } = await fetchRootWhenLive();
+  let r = rootRes;
   // "Sign in" is still the button label and the title on the login page in
   // functions/_middleware.js, so the original assertion stands. The email field
   // is asserted alongside it: the page grew one when login became per-user, and
