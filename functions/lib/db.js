@@ -25,7 +25,14 @@ export function rowToCompany(row) {
     em: safeArray(row.em),
     wa: safeArray(row.wa),
     land: row.land || "",
-    note: row.note || "",
+    // The lead note lives on `progress` since migration 011, so it is private
+    // to the asking profile — `companies.note` is shared by every profile that
+    // adopted the lead and is write-dead. The response key stays `note`
+    // deliberately: index.html reads and renders `note` and is not part of this
+    // change, so the rename stops at the column. Callers must alias the column
+    // into the row (`p.lead_note AS lead_note`); a company with no progress row
+    // for this profile has no note, hence "".
+    note: row.lead_note || "",
     job: row.job_url ? { u: row.job_url, t: row.job_title || "" } : null,
     source: row.source,
     scraped_from: row.scraped_from || "",

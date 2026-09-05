@@ -17,14 +17,49 @@
  *  No `progress` rows are written here on purpose: an absent row already reads
  *  as 'none' everywhere (the readers all LEFT JOIN), so seeding 292 empty rows
  *  per adopting profile would cost writes and buy nothing.
+ *
+ *  CROSS-TENANT ADOPTION IS INTENTIONAL
+ *  Since 010 the source profile may belong to a DIFFERENT user, and that is
+ *  allowed on purpose — it is the reason the feature exists. Two users with
+ *  similar targeting would otherwise both scrape LinkedIn and Naukri for the
+ *  same companies and get the whole deployment rate-limited; adoption is how
+ *  the second one skips that. So only the ADOPTING profile (`:id`) is checked
+ *  for ownership below, never `from_profile_id`.
+ *
+ *  Exactly what crosses the tenant boundary, and nothing else:
+ *    - rows in `profile_companies`: (this profile, company_id) visibility edges.
+ *  What does NOT cross, and must never be added here:
+ *    - `progress` — stage and stage_note, keyed (profile_id, company_id) by 008,
+ *      so the adopting profile starts at 'none' with no note;
+ *    - `stage_history` — the other tenant's timeline of what they did and when;
+ *    - anything off the source `profiles` row — its identity fields are not read
+ *      here at all, and its name is never echoed in the response;
+ *    - `companies` rows themselves, which are not copied but pointed at, so the
+ *      shared thing is the lead, singular, exactly as before 010.
+ *  `companies.note` is a genuine exception and a known one: it lives on the
+ *  shared company row rather than on `progress`, so it is already visible to
+ *  every profile that can see the lead. Migration 010 records that it is dealt
+ *  with in 011; this handler neither widens nor narrows it.
  */
 import { json, badRequest, notFound } from "../../../lib/db.js";
-import { rowToProfile, similarity, SIMILARITY_THRESHOLD, parseId } from "../../../lib/profile.js";
+import {
+  rowToProfile,
+  similarity,
+  assertProfileOwner,
+  SIMILARITY_THRESHOLD,
+  parseId,
+} from "../../../lib/profile.js";
 
 export async function onRequestPost(context) {
   const { request, env, params } = context;
   const id = parseId(params.id);
   if (!id) return badRequest("invalid profile id");
+
+  // Adoption writes visibility rows for `:id`, so `:id` must be the caller's —
+  // otherwise a tenant could stuff leads into someone else's board, or use the
+  // 409 below as an oracle for how similar two profiles they do not own are.
+  const owner = await assertProfileOwner(env, id, context.data.userId);
+  if (owner.error) return json({ error: owner.error }, { status: owner.status });
 
   const body = await request.json().catch(() => null);
   const fromId = parseId(body?.from_profile_id);
@@ -33,6 +68,9 @@ export async function onRequestPost(context) {
 
   const mineRow = await env.DB.prepare("SELECT * FROM profiles WHERE id = ?1").bind(id).first();
   if (!mineRow) return notFound("profile not found");
+  // Loaded, not ownership-checked: see the header. Only its targeting fields
+  // are read, and only to score the similarity gate — no field of it reaches
+  // the response.
   const fromRow = await env.DB.prepare("SELECT * FROM profiles WHERE id = ?1").bind(fromId).first();
   if (!fromRow) return notFound(`profile ${fromId} not found`);
 

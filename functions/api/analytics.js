@@ -21,10 +21,11 @@ import { resolveProfileId, VISIBLE_TO_PROFILE, PROGRESS_ON_PROFILE } from "../li
 
 export async function onRequestGet(context) {
   const { request, env } = context;
+  const userId = context.data.userId;
   const url = new URL(request.url);
   const sixtyDaysAgo = Date.now() - 60 * 86400000;
 
-  const profile = await resolveProfileId(env, url);
+  const profile = await resolveProfileId(env, url, null, userId);
   if (profile.error) return json({ error: profile.error }, { status: profile.status });
   const pid = profile.id;
 

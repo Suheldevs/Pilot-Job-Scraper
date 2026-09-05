@@ -6,12 +6,13 @@ to /api/companies/bulk. Existing companies are never overwritten server-side,
 so re-running this is safe.
 
 Usage:
-    python push.py --url https://pilot-78c.pages.dev --password hunter2
+    python push.py --url https://pilot-78c.pages.dev --email me@example.com
     python push.py --sources remoteok naukri          # url/password from env
     python push.py --dry-run                          # collect + print, push nothing
     python push.py --due-only                         # only sources whose interval elapsed
 
-Env fallbacks: JO_URL, JO_PASSWORD.
+Env fallbacks: JO_URL, JO_EMAIL, JO_PASSWORD. Prefer JO_PASSWORD over --password:
+an argument is visible in `ps` to every user on the host and lands in shell history.
 """
 import argparse
 import os
@@ -105,26 +106,44 @@ def record_outcomes(client: httpx.Client, base_url: str, names: List[str],
     print(f"Schedule updated for {len(names)} source(s).")
 
 
-def login(client: httpx.Client, base_url: str, password: str) -> None:
-    """Sign in and arm the client's session cookie. Raises PushError on failure."""
+def login(client: httpx.Client, base_url: str, email: str, password: str) -> None:
+    """Sign in and arm the client's session cookie. Raises PushError on failure.
+
+    The dashboard is multi-tenant, so a passphrase alone no longer identifies
+    anyone — the session it mints is scoped to one user, and every lead pushed
+    afterwards lands on that user's default profile.
+    """
     try:
-        # follow_redirects=False so we see the 302 itself — following it would
-        # bounce us to "/" and make a wrong-password 401 harder to distinguish.
+        # follow_redirects=False so we see the response itself — following it
+        # would bounce us to "/" and make a wrong-password 401 harder to
+        # distinguish.
         resp = client.post(
             f"{base_url}/api/login",
-            json={"password": password},
+            json={"email": email, "password": password},
             follow_redirects=False,
         )
     except httpx.RequestError as e:
         raise PushError(f"login failed: could not reach {base_url} ({e})")
 
     if resp.status_code == 401:
-        raise PushError("login failed: wrong passphrase.")
-    if resp.status_code != 302:
+        raise PushError("login failed: wrong email or passphrase.")
+    # A JSON sign-in answers 200 with a body; 302 is the browser form's reply and
+    # is still accepted so an older deployment does not hard-fail here.
+    if resp.status_code not in (200, 302):
         raise PushError(
-            f"login failed: expected a 302 redirect, got HTTP {resp.status_code}. "
+            f"login failed: expected HTTP 200, got HTTP {resp.status_code}. "
             f"Is {base_url} the right dashboard URL?"
         )
+
+    if resp.status_code == 200:
+        body = {}
+        try:
+            body = resp.json()
+        except ValueError:
+            pass
+        if body.get("must_set_password"):
+            print("  ! this account is still on the bootstrap SITE_PASSWORD — "
+                  "set a real passphrase in the dashboard.")
 
     token = resp.cookies.get("session")
     if not token:
@@ -177,8 +196,11 @@ def main():
     parser.add_argument("--url", default=os.environ.get("JO_URL"),
                         help="dashboard base URL, e.g. https://pilot-78c.pages.dev "
                              "(or set JO_URL)")
+    parser.add_argument("--email", default=os.environ.get("JO_EMAIL"),
+                        help="dashboard account email (or set JO_EMAIL)")
     parser.add_argument("--password", default=os.environ.get("JO_PASSWORD"),
-                        help="dashboard passphrase (or set JO_PASSWORD)")
+                        help="dashboard passphrase. Prefer JO_PASSWORD: an "
+                             "argument is visible in `ps` and shell history")
     parser.add_argument("--sources", nargs="+", choices=list(ALL_SOURCES) + ["all"],
                         default=["all"])
     parser.add_argument("--dry-run", action="store_true",
@@ -208,13 +230,14 @@ def main():
                              "that were never acted on (0 = don't prune)")
     args = parser.parse_args()
 
-    # --url/--password are only required for a real push; a dry run needs neither.
+    # --url/--email/--password are only required for a real push; a dry run needs none.
     if not args.dry_run:
-        missing = [flag for flag, value in (("--url", args.url), ("--password", args.password))
+        missing = [flag for flag, value in (("--url", args.url), ("--email", args.email),
+                                            ("--password", args.password))
                    if not value]
         if missing:
             parser.error(f"{' and '.join(missing)} required "
-                         "(or set JO_URL / JO_PASSWORD)")
+                         "(or set JO_URL / JO_EMAIL / JO_PASSWORD)")
 
     base_url = (args.url or "").rstrip("/")
     names = list(ALL_SOURCES) if "all" in args.sources else args.sources
@@ -236,7 +259,7 @@ def main():
         # the passphrase is wrong.
         if not args.dry_run:
             print(f"Logging into {base_url} ...")
-            login(client, base_url, args.password)
+            login(client, base_url, args.email, args.password)
             print("Logged in.")
 
             if args.prune_days > 0:
@@ -250,7 +273,7 @@ def main():
             # does, since /api/* is gated by the middleware. Failing here is
             # not fatal: scheduler.due_sources falls back to local state.
             try:
-                login(client, base_url, args.password)
+                login(client, base_url, args.email, args.password)
                 print("Logged in (read-only — --due-only needs the schedule).")
             except PushError as e:
                 print(f"Schedule login skipped — {e}")

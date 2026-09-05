@@ -6,7 +6,10 @@ It replaces the old single-file HTML tracker that kept everything in
 `localStorage` — that file is preserved as
 [legacy-hey.html.bak](legacy-hey.html.bak) and is no longer used.
 
-The whole site sits behind one passphrase. There are no accounts.
+Multi-tenant: each person signs in with their own email and passphrase, and
+owns their own profiles. Scraped leads can be shared between similar profiles
+so a second tenant does not re-run the scrape; stages, notes and identity stay
+private. See [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md#users-and-tenancy).
 
 ## Architecture
 
@@ -121,11 +124,17 @@ source .cf-credentials && npx wrangler pages secret put SITE_PASSWORD
 source .cf-credentials && npx wrangler pages secret put SESSION_SECRET
 ```
 
-- `SITE_PASSWORD` — the passphrase you type to log in.
+- `SITE_PASSWORD` — bootstrap only. Migration 010 seeds the owner account with
+  no password, and this is what gets you in the first time so applying the
+  migration cannot lock you out of your own app. It stops being accepted for
+  that account the moment a real passphrase is set. Everyone else signs in
+  against the `users` table.
 - `SESSION_SECRET` — a random signing key, never typed by anyone. Generate one:
   `openssl rand -hex 32`.
 
-Changing `SESSION_SECRET` invalidates every existing session.
+Changing `SESSION_SECRET` invalidates every existing session, for everyone. To
+sign out one user instead, bump their `session_epoch` — which is what a
+password change already does.
 
 For local development put the same two in `.dev.vars` (gitignored):
 
@@ -147,10 +156,19 @@ source .cf-credentials && npx wrangler pages deploy .        # deploy
 
 `functions/_middleware.js` runs on every request. No valid `session` cookie
 means: HTML requests get the login page, `/api/*` requests get
-`401 {"error":"unauthorized"}`. `POST /api/login` compares the submitted
-password against `SITE_PASSWORD` and, on a match, sets a 30-day
-`HttpOnly; Secure; SameSite=Strict` cookie holding an HMAC-SHA256-signed
-`{exp}` payload. No session table, no session store — just the secret.
+`401 {"error":"unauthorized"}`. `POST /api/login` takes an **email and
+passphrase**, verifies the passphrase against that user's PBKDF2 hash, and on a
+match sets a 30-day `HttpOnly; Secure; SameSite=Strict` cookie holding an
+HMAC-SHA256-signed `{uid, ep, exp}` payload. No session table, no session store —
+just the secret.
+
+The middleware publishes `context.data.userId` (and, for `/api/*`,
+`context.data.user`) so handlers can authorise rather than merely authenticate.
+`resolveProfileId` is what consumes it: it refuses a profile the caller does not
+own, and **fails closed** if no user id was passed.
+
+A browser form gets a 302; a JSON request (push.py, the extension) gets
+`200 {ok, user_id, must_set_password}`.
 
 ## Running the scraper
 
@@ -276,14 +294,26 @@ hey.html `{state, custom, tpl}` shape with `custom` keyed by *city*
 added. Use `push.py`, or a CSV, or the current export shape. `main.py` is
 still useful with `--dry-run` to see what a run would collect.
 
-**One passphrase, no accounts.** Anyone who has it has full read and write
-access, deletion included. There are no roles, no audit trail beyond
-`stage_history`, and no per-user data.
+**No rate limiting on `/api/login`.** Unlimited attempts, no lockout, no delay.
+This belongs in a Cloudflare rate-limiting rule on that path rather than a D1
+write per attempt, which would put a write on the unauthenticated path. It is the
+largest remaining hole in the auth story.
 
-**The "Sign out" link is dead.** It points at `/api/logout`, which has no
-handler — the request falls through the middleware and 404s. Clearing the
-`session` cookie is the only way to sign out early. Sessions otherwise expire
-after 30 days.
+**Roles are admin-or-not.** There is no finer permission model and no audit trail
+beyond `stage_history`. An admin can create users, reset passwords and delete
+accounts.
+
+**Adoption crosses tenants by design.** A profile similar to yours can be adopted
+from even when another user owns it — that is the point, since re-scraping is
+what gets this project rate-limited. Company rows become visible; stages, notes
+and identity do not. One consequence worth knowing: `/api/profile/:id/similar`
+returns a similarity score against profiles you do not own, and a caller who can
+create profiles could probe that score to infer another tenant's keywords.
+
+**Signing out clears only that browser.** `/api/logout` expires the cookie on the
+device that calls it. To invalidate a user's sessions everywhere — the thing you
+want after a leaked passphrase — bump their `session_epoch`, which any password
+change already does. Sessions otherwise expire after 30 days.
 
 **`PATCH` and `DELETE /api/companies/:id` have no UI.** Editing a company's
 contact details or deleting one has to be done against the API directly. The

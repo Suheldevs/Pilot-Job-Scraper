@@ -417,31 +417,54 @@ function pagePostBulk(companies) {
 // Talking to the dashboard
 // ─────────────────────────────────────────────────────────────
 
-/** POST /api/login. The dashboard has no token auth — it answers a correct
- *  passphrase with a 302 and an HttpOnly, Secure, SameSite=Strict `session`
- *  cookie, so there is nothing for us to read or store; we can only ask Chrome
- *  to send the cookie back for us (credentials: "include"). */
-async function login(base, password) {
+/** POST /api/login. The dashboard has no token auth — since it went
+ *  multi-tenant the credential is a per-user email plus passphrase, and a JSON
+ *  request is answered with a 200 and a JSON body (the browser's own form still
+ *  gets the 302). Either way the session arrives as an HttpOnly, Secure,
+ *  SameSite=Strict `session` cookie, so there is nothing for us to read or
+ *  store; we can only ask Chrome to send the cookie back for us
+ *  (credentials: "include"). */
+async function login(base, email, password) {
   let res;
   try {
     res = await fetch(`${base}/api/login`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ password }),
-      // "manual" leaves the 302 unfollowed: following it would download the
+      body: JSON.stringify({ email, password }),
+      // "manual" leaves a redirect unfollowed: following it would download the
       // whole dashboard just to learn we succeeded. Chrome still stores the
-      // Set-Cookie, and a wrong passphrase still arrives as a readable 401.
+      // Set-Cookie, and wrong credentials still arrive as a readable 401.
       redirect: 'manual',
     });
   } catch (e) {
     return { error: `Could not reach ${base} (${e && e.message ? e.message : e}).` };
   }
-  if (res.status === 401) return { error: 'Wrong passphrase.' };
-  // An unfollowed redirect surfaces as type "opaqueredirect" with status 0.
-  if (res.type === 'opaqueredirect' || res.status === 0 || res.status === 302 || res.ok) {
-    return { ok: true };
+
+  if (res.status === 401) {
+    // The API deliberately returns one message for an unknown address and for a
+    // bad passphrase, so the extension cannot be used to test whether an account
+    // exists. Echoing its wording keeps the two surfaces from ever disagreeing;
+    // the literal is only the floor for a deployment that sends no body.
+    const body = await res.json().catch(() => ({}));
+    return { error: body.error || 'Wrong email or passphrase.' };
   }
+
+  if (res.ok) {
+    const body = await res.json().catch(() => ({}));
+    // The account is still on the SITE_PASSWORD bootstrap and has no passphrase
+    // of its own yet. Only the dashboard can set one, so this is carried back to
+    // the popup as something to tell the user rather than acted on here.
+    return { ok: true, mustSetPassword: !!body.must_set_password };
+  }
+
+  // A dashboard deployed before the JSON reply existed answers with a 302, which
+  // an unfollowed redirect surfaces as type "opaqueredirect" with status 0. One
+  // extra condition means a stale deployment degrades instead of hard-failing.
+  if (res.type === 'opaqueredirect' || res.status === 0 || res.status === 302) {
+    return { ok: true, mustSetPassword: false };
+  }
+
   return { error: `Unexpected reply from ${base}: HTTP ${res.status}. Is that the dashboard URL?` };
 }
 
@@ -515,7 +538,7 @@ async function postBulkViaTab(base, companies) {
 
 /** Send every company, chunked. Escalates through three ways of getting the
  *  cookie attached before giving up with an actionable message. */
-async function submit(base, companies, passphrase) {
+async function submit(base, companies, email, passphrase) {
   let submitted = 0;
   let skipped = 0;
 
@@ -525,9 +548,9 @@ async function submit(base, companies, passphrase) {
     let res = await postBulk(base, chunk);
     if (res.error) return { error: res.error };
 
-    if (res.status === 401 && passphrase) {
+    if (res.status === 401 && email && passphrase) {
       // Most likely the 30-day session simply expired: sign in and retry once.
-      const relogin = await login(base, passphrase);
+      const relogin = await login(base, email, passphrase);
       if (relogin.error) return { error: relogin.error };
       res = await postBulk(base, chunk);
       if (res.error) return { error: res.error };
@@ -562,9 +585,15 @@ function hostOf(url) {
 }
 
 async function runGrab(autoScroll) {
-  const { serverUrl, passphrase } = await get(['serverUrl', 'passphrase']);
+  const { serverUrl, email, passphrase } = await get(['serverUrl', 'email', 'passphrase']);
   const base = trimBase(serverUrl);
-  if (!passphrase) return { error: 'Not signed in.', needLogin: true };
+  if (!passphrase) return { error: 'Sign in again to keep grabbing.', needLogin: true };
+  // An install carried over from before the dashboard went multi-tenant has a
+  // passphrase but no email, and the API will not take one without the other.
+  // Saying so here beats letting the grab run and die on a 401 it cannot explain.
+  if (!email) {
+    return { error: 'The dashboard now signs you in by email. Add yours to keep grabbing.', needLogin: true };
+  }
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   // tab.url is only readable for hosts we hold permission for, so an undefined
@@ -598,7 +627,7 @@ async function runGrab(autoScroll) {
     return { found, sent: 0, saved: 0, skipped: 0, noCity };
   }
 
-  const res = await submit(base, companies, passphrase);
+  const res = await submit(base, companies, email, passphrase);
   if (res.error) {
     badge('');
     return { error: res.error, found, sent: 0 };
@@ -630,30 +659,42 @@ async function trackedGrab(autoScroll) {
 const HANDLERS = {
   async login(msg) {
     const base = trimBase(msg.serverUrl);
+    // Trimmed because the address is retyped by hand here rather than picked
+    // from a browser autofill, and the API matches on lower(email) anyway.
+    const email = String(msg.email || '').trim();
     const passphrase = String(msg.passphrase || '');
+    if (!email) return { error: 'Enter the email you sign in to the dashboard with.' };
     if (!passphrase) return { error: 'Enter your passphrase.' };
 
-    const res = await login(base, passphrase);
+    const res = await login(base, email, passphrase);
     if (res.error) return res;
 
     // Remembered so the grab can re-login by itself when the session lapses —
     // there is no token to keep, the cookie is HttpOnly and unreadable from here.
-    await set({ serverUrl: base, passphrase });
+    await set({ serverUrl: base, email, passphrase });
     const cookieReachesApi = await probeSession(base);
-    return { ok: true, cookieReachesApi };
+    return { ok: true, cookieReachesApi, mustSetPassword: !!res.mustSetPassword };
   },
 
   async logout() {
+    // Only the passphrase is the secret. The email is left behind for the same
+    // reason serverUrl always has been: it is what you would have to retype, and
+    // erasing it buys no privacy the passphrase's removal has not already bought.
     await set({ passphrase: null, lastResult: null });
     badge('');
     return { ok: true };
   },
 
   async status() {
-    const stored = await get(['serverUrl', 'passphrase', 'lastResult', 'running', 'runningAuto']);
+    const stored = await get(['serverUrl', 'email', 'passphrase', 'lastResult', 'running', 'runningAuto']);
     return {
       serverUrl: trimBase(stored.serverUrl),
-      signedIn: !!stored.passphrase,
+      email: stored.email || '',
+      signedIn: !!(stored.passphrase && stored.email),
+      // True only for an install upgraded from the single-password dashboard: the
+      // passphrase survived but has nothing to pair with. The popup uses it to
+      // explain why it is asking again instead of showing a bare login form.
+      needsEmail: !!stored.passphrase && !stored.email,
       lastResult: stored.lastResult || null,
       running: !!stored.running,
       runningAuto: !!stored.runningAuto,

@@ -6,12 +6,14 @@
  *  write to. A scrape run touches hundreds of leads per pass; wiring an AI call
  *  into that path would burn the quota in a single run, make every run slow and
  *  flaky, and produce drafts for leads nobody will ever contact. The scraper
- *  writes `jd_excerpt` and `note`; a human clicking "draft" is what turns those
- *  into a message.
+ *  writes `jd_excerpt`, and the user writes the lead note; a human clicking
+ *  "draft" is what turns those into a message.
  *
  *  Body: { company_id, channel: "email" | "whatsapp" | "linkedin", profile_id? }
  *  `company_id` is the companies table's TEXT slug id ("pune:coditude"), not an
- *  integer. `profile_id` defaults to the profile flagged `is_default`.
+ *  integer. `profile_id` defaults to the caller's own default profile, and every
+ *  per-profile thing this endpoint reads — the templates, the lead note, the
+ *  candidate identity it writes as — is scoped to it.
  *
  *  Returns { subject?, body, used_template, template_key, warnings[] }.
  *  `subject` is present for email only — WhatsApp and LinkedIn have no subject
@@ -25,7 +27,7 @@
  *  an essay on WhatsApp does not get read.
  */
 import { json, badRequest, notFound } from "../../lib/db.js";
-import { rowToProfile } from "../../lib/profile.js";
+import { rowToProfile, resolveProfileId, PROGRESS_ON_PROFILE, VISIBLE_TO_PROFILE } from "../../lib/profile.js";
 import { callGemini, geminiErrorResponse, hasKey, missingKeyError } from "../../lib/gemini.js";
 
 const TPL_KEYS = {
@@ -94,6 +96,8 @@ const RESPONSE_SCHEMA = {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const userId = context.data.userId;
+  const url = new URL(request.url);
 
   if (!hasKey(env)) return geminiErrorResponse(missingKeyError());
 
@@ -109,29 +113,57 @@ export async function onRequestPost(context) {
     return badRequest(`channel must be one of ${CHANNELS.join(", ")}`);
   }
 
-  let profileId = null;
-  if (body.profile_id !== undefined && body.profile_id !== null && body.profile_id !== "") {
-    const n = Number(body.profile_id);
-    if (!Number.isInteger(n) || n <= 0) return badRequest("profile_id must be a positive integer");
-    profileId = n;
-  }
+  // Resolved through the shared helper rather than by hand, because
+  // `body.profile_id` is caller-controlled and this endpoint reads that
+  // profile's saved templates, its private lead note and the identity it signs
+  // the message with. resolveProfileId is the one place that checks the caller
+  // owns the profile at all, and it fails closed without a userId. Its
+  // no-profile_id fallback is the caller's OWN default; the previous global
+  // `is_default = 1` lookup would have handed a second tenant the parent's
+  // identity to write as.
+  const resolved = await resolveProfileId(env, url, body, userId);
+  if (resolved.error) return json({ error: resolved.error }, { status: resolved.status });
 
+  // `p.lead_note`, not `c.note`: 011 moved the lead note onto the progress row
+  // precisely because the company column is shared by every profile that adopted
+  // the lead. It goes into the prompt below, so reading the shared column would
+  // have fed one tenant's private sentence to another tenant's draft — on top of
+  // being stale, since nothing writes it any more.
+  //
+  // VISIBLE_TO_PROFILE scopes the COMPANY ROW, which the join alone never did.
+  // Keying the note by profile only made the note private; every other field
+  // selected here — the name, the job title, the JD excerpt, and `c.hr`/`em`/`wa`
+  // the moment anyone adds them to this list — sits on the shared row and came
+  // back for any `company_id` that existed, from any tenant, to any caller with
+  // an account. `company_id` is a guessable slug ("pune:coditude"), so that was a
+  // read of another tenant's board dressed up as a draft request.
+  //
+  // Deliberate behaviour change: a lead this profile neither owns nor adopted now
+  // takes the not-found path below instead of returning a draft. Not-found rather
+  // than a 403, because on this endpoint the two are the same answer — a board
+  // you are not on has no company by that id — and saying "exists, but not
+  // yours" would confirm the very row we are refusing to show.
   const company = await env.DB.prepare(`
-    SELECT id, name, tab, job_title, job_url, note, jd_excerpt, grade, score,
-           experience_raw, employment_type, remote_type, department, salary_raw
-      FROM companies WHERE id = ?1
-  `).bind(companyId).first();
+    SELECT c.id, c.name, c.tab, c.job_title, c.job_url, c.jd_excerpt, c.grade, c.score,
+           c.experience_raw, c.employment_type, c.remote_type, c.department, c.salary_raw,
+           p.lead_note AS lead_note
+      FROM companies c
+      LEFT JOIN progress p ON ${PROGRESS_ON_PROFILE}
+     WHERE c.id = ?2
+       AND ${VISIBLE_TO_PROFILE}
+  `).bind(resolved.id, companyId).first();
   if (!company) return notFound(`company '${companyId}' not found`);
 
-  const profileRow = profileId
-    ? await env.DB.prepare("SELECT * FROM profiles WHERE id = ?1").bind(profileId).first()
-    : await env.DB.prepare("SELECT * FROM profiles WHERE is_default = 1 ORDER BY id LIMIT 1").first();
-  if (!profileRow) {
-    return notFound(profileId ? `profile ${profileId} not found` : "no default profile configured");
-  }
+  const profileRow = await env.DB
+    .prepare("SELECT * FROM profiles WHERE id = ?1")
+    .bind(resolved.id)
+    .first();
+  // Still reachable despite the resolve above: the default path falls back to
+  // the parent id on a database whose `profiles` table was never seeded.
+  if (!profileRow) return notFound(`profile ${resolved.id} not found`);
   const profile = rowToProfile(profileRow);
 
-  const tpl = await loadTemplate(env, channel);
+  const tpl = await loadTemplate(env, channel, resolved.id);
 
   const warnings = [];
   if (!tpl.body) {
@@ -220,14 +252,21 @@ export async function onRequestPost(context) {
 }
 
 /** The channel's saved template, with templates.js's legacy fallback so a user
- *  who never migrated still gets their own voice as the reference. */
-async function loadTemplate(env, channel) {
+ *  who never migrated still gets their own voice as the reference.
+ *
+ *  Scoped to one profile: 010 keyed `settings` by (profile_id, key), so the same
+ *  template keys now exist once per profile and an unscoped read would draft the
+ *  message in whichever tenant's voice SQLite reached first. */
+async function loadTemplate(env, channel, profileId) {
   const keys = TPL_KEYS[channel];
   const wanted = [...Object.values(keys), LEGACY_KEY];
-  const placeholders = wanted.map((_, i) => `?${i + 1}`).join(",");
+  // ?1 is the profile, so the generated key placeholders start at ?2 and the
+  // binds are pushed along by one to match — same shape as templates.js, which
+  // reads these very rows.
+  const placeholders = wanted.map((_, i) => `?${i + 2}`).join(",");
   const { results } = await env.DB
-    .prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`)
-    .bind(...wanted)
+    .prepare(`SELECT key, value FROM settings WHERE profile_id = ?1 AND key IN (${placeholders})`)
+    .bind(profileId, ...wanted)
     .all();
   const stored = new Map((results || []).map((r) => [r.key, r.value]));
 
@@ -280,7 +319,7 @@ function buildPrompt({ channel, company, profile, tpl }) {
   if (company.employment_type) lines.push(`Employment type: ${company.employment_type}`);
   if (company.remote_type) lines.push(`Remote type: ${company.remote_type}`);
   if (company.experience_raw) lines.push(`Experience asked for: ${company.experience_raw}`);
-  if (company.note) lines.push(`Our own note on this lead: ${trunc(company.note, 400)}`);
+  if (company.lead_note) lines.push(`Our own note on this lead: ${trunc(company.lead_note, 400)}`);
   if (company.jd_excerpt) {
     lines.push("Job description excerpt (may be truncated mid-sentence):");
     lines.push(trunc(company.jd_excerpt, 2500));

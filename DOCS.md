@@ -4,8 +4,9 @@ A private job-outreach system: a scraper that reads tens of thousands of job
 URLs and hands back the few dozen worth writing to, plus a dashboard that
 remembers who you already wrote to.
 
-Live at `https://pilot-78c.pages.dev` behind a passphrase. The passphrase and
-all API keys live in gitignored local files, never in this repository.
+Live at `https://pilot-78c.pages.dev`, multi-tenant: each person signs in with
+their own email and passphrase and owns their own profiles. Credentials and all
+API keys live in gitignored local files, never in this repository.
 
 **Contents**
 
@@ -96,7 +97,7 @@ companies are never evicted.
 | Dashboard | One HTML file — vanilla JS, no build step, no framework. Inter via Google Fonts, hand-rolled SVG/CSS charts | 1,679 lines |
 | API | Cloudflare Pages Functions (JavaScript on the Workers runtime) | 1,264 lines / 16 files |
 | Database | Cloudflare D1 — SQLite at the edge, APAC region | 4 tables |
-| Auth | Passphrase → HMAC-signed session cookie (Web Crypto), gating **every** route including static assets | — |
+| Auth | Email + passphrase (PBKDF2-SHA256) → HMAC-signed session cookie (Web Crypto), gating **every** route including static assets | — |
 | Scraper | Python 3.13 | 4,879 lines / 30 files |
 | Browser extension | Chrome MV3, no build step | 882 lines |
 | Schedule | Windows Task Scheduler, every 6 hours | — |
@@ -360,8 +361,14 @@ npx wrangler pages secret put SESSION_SECRET  --project-name pilot
 deploy.cmd --migrate
 ```
 
-`SITE_PASSWORD` is what you type to log in. `SESSION_SECRET` is a random signing
-key nobody types — changing it invalidates every existing session.
+`SITE_PASSWORD` is a bootstrap credential only. Migration 010 seeds the owner
+account with no password so that applying it cannot lock you out; SITE_PASSWORD
+gets you in once, and stops being accepted for that account the moment a real
+passphrase is set. Everyone else authenticates against the `users` table.
+
+`SESSION_SECRET` is a random signing key nobody types — changing it invalidates
+every existing session, for everyone. To invalidate one user's sessions instead,
+bump their `session_epoch`; any password change already does.
 
 ### Credential files (all gitignored)
 
@@ -466,7 +473,10 @@ which is exactly the failure the table exists to surface.
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/login` | POST | Passphrase → session cookie |
+| `/api/login` | POST | Email + passphrase → session cookie |
+| `/api/users` | GET, POST | List / create users (admin) |
+| `/api/user/:id` | GET, PATCH, DELETE | One user (self or admin) |
+| `/api/user/password` | POST | Change own password; admin can reset another's |
 | `/api/companies` | GET, POST | List / add one |
 | `/api/companies/bulk` | POST | Scraper push |
 | `/api/companies/:id` | PATCH, DELETE | Edit / remove |
@@ -503,8 +513,13 @@ static assets — an unauthenticated request to any path gets the login page.
 - **SmartRecruiters was deliberately not built.** It has a good documented API,
   but `api.smartrecruiters.com/robots.txt` disallows generic crawlers with a
   LinkedInBot carve-out. That is a judgement call worth making knowingly.
-- **The dashboard is one passphrase deep.** It holds real contact details for
-  nearly 300 companies plus personal details. Treat the link as sensitive.
+- **The dashboard holds real personal data.** Contact details for nearly 300
+  companies, plus each tenant's own identity. Tenants are isolated — profiles,
+  stages, notes and identity do not cross — but scraped company rows are
+  deliberately shareable between similar profiles, because re-scraping is what
+  gets this project rate-limited. See PROFILE-CONTRACT.md.
+- **There is no rate limiting on `/api/login`.** Unlimited attempts, no lockout.
+  It belongs in a Cloudflare rate-limiting rule on that path.
 
 ---
 
@@ -532,7 +547,7 @@ sources/base.py            retries, backoff, 304s, breaker, UTF-8 JSON
 sources/*.py               one file per source
 sources/ats_probe.py       company name -> Greenhouse/Lever/Ashby slug
 
-functions/_middleware.js   passphrase gate over every route
+functions/_middleware.js   per-user auth gate over every route
 functions/api/**           the API
 functions/lib/**           auth, db helpers, canonical slugs
 

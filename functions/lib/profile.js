@@ -257,17 +257,80 @@ export const PROFILE_COLUMNS = [
  *  resolves to the same place the data was stamped with. */
 export const PARENT_PROFILE_ID = 1;
 
-/** The id of the profile flagged `is_default`.
+/** The id of the profile flagged `is_default`, scoped to one user.
  *  Exactly one row should hold the flag — profile/[id].js PUT enforces that —
  *  but this tolerates none and many rather than throwing, because returning
- *  the wrong-but-stable id degrades better than 500-ing every read in the app. */
-export async function defaultProfileId(env) {
+ *  the wrong-but-stable id degrades better than 500-ing every read in the app.
+ *
+ *  `is_default` is global rather than per-user, so the flagged row may belong to
+ *  somebody else. Scoping by owner first is what stops a second tenant whose own
+ *  profile is not flagged from silently defaulting onto the parent's board — the
+ *  exact ambient-access bug the ownership check below exists to close. A user
+ *  with no profiles at all gets PARENT_PROFILE_ID, which then fails the
+ *  ownership check rather than resolving to somebody else's data.
+ */
+export async function defaultProfileId(env, userId = null) {
+  const uid = Number(userId);
+  if (Number.isInteger(uid) && uid > 0) {
+    const mine = await env.DB
+      .prepare(`SELECT id FROM profiles WHERE owner_user_id = ?1
+                 ORDER BY is_default DESC, id ASC LIMIT 1`)
+      .bind(uid)
+      .first();
+    if (mine) return mine.id;
+    return PARENT_PROFILE_ID;
+  }
+
   const flagged = await env.DB
     .prepare("SELECT id FROM profiles WHERE is_default = 1 ORDER BY id ASC LIMIT 1")
     .first();
   if (flagged) return flagged.id;
   const first = await env.DB.prepare("SELECT id FROM profiles ORDER BY id ASC LIMIT 1").first();
   return first ? first.id : PARENT_PROFILE_ID;
+}
+
+/** Assert that `userId` owns `profileId`.
+ *
+ *  Returns `{ ok: true }`, or `{ error, status }` with 404 when the profile does
+ *  not exist and 403 when it exists but belongs to someone else. Those two are
+ *  deliberately distinguishable: this app has no public surface — every caller
+ *  is already authenticated by _middleware.js — so hiding existence behind a
+ *  blanket 404 would only make a tenant's own typo unreadable while telling an
+ *  attacker who already has an account nothing they could not learn from
+ *  /api/profile/:id/similar anyway.
+ *
+ *  A null/absent `userId` fails closed. Handlers must pass the id from
+ *  `context.data.userId`; forgetting to is a bug, and it should present as a
+ *  refusal rather than as unrestricted access.
+ *
+ *  THE ADMIN PATH
+ *  `isAdmin` lets an administrator through on a profile they do not own. It is
+ *  opt-in per call site rather than a blanket rule, because "can administer the
+ *  installation" and "may read this tenant's board" are different powers and
+ *  collapsing them would quietly turn every lead-reading endpoint into an
+ *  admin-can-see-everything endpoint. Only profile MANAGEMENT passes it — see
+ *  functions/api/profile/[id].js. It never reaches `resolveProfileId`, so
+ *  `?profile_id=` stays owner-only for admins too: an admin who wants to read
+ *  another tenant's leads has to be given that profile, not merely ask for it.
+ */
+export async function assertProfileOwner(env, profileId, userId, isAdmin = false) {
+  const id = parseId(profileId);
+  if (!id) return { error: "invalid profile id", status: 400 };
+
+  const uid = Number(userId);
+  if (!Number.isInteger(uid) || uid < 1) {
+    return { error: "not authenticated", status: 401 };
+  }
+
+  const row = await env.DB
+    .prepare("SELECT id, owner_user_id FROM profiles WHERE id = ?1")
+    .bind(id)
+    .first();
+  if (!row) return { error: `profile ${id} not found`, status: 404 };
+  if (Number(row.owner_user_id) !== uid && !isAdmin) {
+    return { error: `profile ${id} belongs to another user`, status: 403 };
+  }
+  return { ok: true };
 }
 
 /** Resolve the profile a request operates on.
@@ -282,21 +345,35 @@ export async function defaultProfileId(env) {
  *  @param body an already-parsed JSON body, or null. Only consulted when the
  *              query string does not carry the parameter, so a URL always wins.
  */
-export async function resolveProfileId(env, url, body = null) {
+export async function resolveProfileId(env, url, body = null, userId = null) {
   let raw = url && url.searchParams ? url.searchParams.get("profile_id") : null;
   if (raw === null || raw === "") {
     raw = body && typeof body === "object" && body.profile_id !== undefined && body.profile_id !== null
       ? body.profile_id
       : null;
   }
-  if (raw === null || raw === "") return { id: await defaultProfileId(env) };
+  if (raw === null || raw === "") return { id: await defaultProfileId(env, userId) };
 
   const id = parseId(raw);
   if (!id) return { error: "profile_id must be a positive integer", status: 400 };
 
-  const row = await env.DB.prepare("SELECT id FROM profiles WHERE id = ?1").bind(id).first();
-  if (!row) return { error: `profile ${id} not found`, status: 404 };
-  return { id: row.id };
+  // The ownership check is HERE, in the one function every profile-scoped
+  // handler already routes through, rather than repeated per endpoint. Ten
+  // handlers resolve a profile; a check copied ten times is a check that is
+  // missing from the eleventh. `?profile_id=` is attacker-controlled input on
+  // every one of them, so this is the single place that decides whether naming
+  // a profile is allowed.
+  // FAILS CLOSED on a missing userId, rather than falling back to the old
+  // existence-only check. Every route that reaches here is behind
+  // _middleware.js, which sets `context.data.userId` for all of them — push.py
+  // and the extension included, since they authenticate through /api/login like
+  // any browser. So "no userId" cannot mean "a legitimate caller without an
+  // account"; it can only mean a handler forgot to pass it, or the middleware
+  // stopped populating it. Both are bugs, and a permissive default would let
+  // either one silently restore pre-multi-tenancy behaviour on every profile-
+  // scoped route at once, with no error to notice it by.
+  const owned = await assertProfileOwner(env, id, userId);
+  return owned.ok ? { id } : owned;
 }
 
 /** SQL predicate for "company `c` is visible to profile ?1".

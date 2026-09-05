@@ -20,6 +20,12 @@
  * Conventions (credentials, colours, pass/fail reporting) are lifted from
  * deploy.mjs so the two read the same way.
  *
+ * Credentials come from the target's secrets file: SITE_EMAIL + SITE_PASSWORD
+ * sign in, and an optional SECOND_EMAIL + SECOND_PASSWORD name a second real
+ * account on the same deployment. Without that second account the tenancy-
+ * isolation checks SKIP rather than pass — with one account there is no other
+ * tenant to leak to, so they would be green for the wrong reason.
+ *
  * Exit codes:  0 everything passed   1 a check failed   2 a target was
  * unreachable (so this can gate a deploy).
  */
@@ -93,6 +99,10 @@ const EXPECTED_SOURCES = [
 const SECRET_PATHS = ["/.cf-credentials", "/.dev.vars", "/wrangler.toml", "/push.py"];
 
 const COMPANY_SAMPLE_SIZE = 10;
+// How far past the highest profile id the caller owns to probe for ids their
+// own listing did not return. Three covers a tenant created after them without
+// turning an ownership check into a table scan.
+const PROFILE_ID_LOOKAHEAD = 3;
 const MAX_IDS_SHOWN = 20;
 const MAX_FIELD_DIFFS_SHOWN = 10;
 const HTTP_TIMEOUT_MS = 30000;
@@ -177,23 +187,49 @@ function readSecretsFile(file) {
   return out;
 }
 
+// Keys whose value is NOT a credential, mirroring deploy.mjs. A sign-in address
+// is not a secret: index.html's ME block and the profile row it seeded both
+// carry it, so screening live responses for it would report the site's own
+// published content as a leaked secret and drown the check that matters.
+const NON_SECRET_KEYS = new Set(["SITE_EMAIL", "SECOND_EMAIL"]);
+
 // Every live secret value we know of, from BOTH targets' files plus the
 // Cloudflare credentials. Used only for `text.includes(value)` — never printed.
 const SECRET_VALUES = [];
 for (const file of [".secrets-generated.txt", ".secrets-78d.txt", ".cf-credentials"]) {
-  for (const v of Object.values(readSecretsFile(file))) {
+  for (const [k, v] of Object.entries(readSecretsFile(file))) {
+    if (NON_SECRET_KEYS.has(k)) continue;
     if (v && v.length > 6 && !SECRET_VALUES.includes(v)) SECRET_VALUES.push(v);
   }
 }
 
+// Since migration 010 login is per-user, so a passphrase on its own identifies
+// nobody and SITE_EMAIL has to be configured beside it. The env vars are the
+// fallback for a machine that keeps credentials outside the secrets file.
+//
+// SECOND_* is a real second account on the deployment, and it is optional. The
+// tenancy checks that need one SKIP loudly without it rather than passing:
+// with a single account every profile in the table belongs to the caller, so
+// "no leak between tenants" would be true for want of a second tenant, not
+// because anything was proved. See REGRESSION.md.
 for (const t of SELECTED) {
-  t.password = readSecretsFile(t.secrets).SITE_PASSWORD || "";
+  const secrets = readSecretsFile(t.secrets);
+  t.email = secrets.SITE_EMAIL || process.env.JO_EMAIL || "";
+  t.password = secrets.SITE_PASSWORD || "";
+  t.second = {
+    email: secrets.SECOND_EMAIL || process.env.JO_SECOND_EMAIL || "",
+    password: secrets.SECOND_PASSWORD || process.env.JO_SECOND_PASSWORD || "",
+    token: null,
+  };
 }
 
 /* -------------------------------------------------------------- fetches --- */
-async function request(t, pathname, { method = "GET", body, auth = true, redirect = "manual" } = {}) {
+// `token` defaults to the target's own session. It is overridable so the same
+// wrapper can speak as the second account, or present a deliberately malformed
+// one, without a second copy of the fetch plumbing.
+async function request(t, pathname, { method = "GET", body, auth = true, redirect = "manual", token = t.token } = {}) {
   const headers = {};
-  if (auth && t.token) headers.Cookie = `session=${t.token}`;
+  if (auth && token) headers.Cookie = `session=${token}`;
   if (body !== undefined) headers["content-type"] = "application/json";
   let res;
   try {
@@ -212,8 +248,8 @@ async function request(t, pathname, { method = "GET", body, auth = true, redirec
 
 /** GET a JSON endpoint. Returns { status, data, error } — never throws on a
  *  non-200, because "this endpoint 500s on main" is itself a finding. */
-async function getJson(t, pathname) {
-  const res = await request(t, pathname);
+async function getJson(t, pathname, opts = {}) {
+  const res = await request(t, pathname, opts);
   const text = await res.text();
   let data = null;
   let error = null;
@@ -225,11 +261,14 @@ async function getJson(t, pathname) {
   return { status: res.status, data, error };
 }
 
-async function login(t) {
-  if (!t.password) {
-    throw new Unreachable(`no SITE_PASSWORD line in ${t.secrets}`);
+/** Sign in over JSON. Returns { status, token } — the status is reported rather
+ *  than judged here, because "login answered the wrong thing" is a check, not a
+ *  precondition. Credentials are arguments so the second account reuses this. */
+async function login(t, email = t.email, password = t.password) {
+  if (!email || !password) {
+    throw new Unreachable(`no SITE_EMAIL/SITE_PASSWORD pair in ${t.secrets}`);
   }
-  const res = await request(t, "/api/login", { method: "POST", body: { password: t.password }, auth: false });
+  const res = await request(t, "/api/login", { method: "POST", body: { email, password }, auth: false });
   const cookie = String(res.headers.get("set-cookie") || "");
   const token = (/session=([^;]+)/.exec(cookie) || [])[1];
   return { status: res.status, token };
@@ -250,8 +289,26 @@ for (const t of SELECTED) {
   try {
     const { status, token } = await login(t);
     t.token = token;
-    check(`${t.name}: login returns 302 with a session cookie`, status === 302 && Boolean(token),
-      `HTTP ${status}, cookie ${token ? "present" : "MISSING"}`);
+    // 200, not 302. A JSON login answers with a body since 010 — push.py and the
+    // browser extension read the cookie off the response and cannot follow a
+    // redirect into dashboard HTML, so a 302 here is the contract breaking even
+    // though a browser would still be signed in by it.
+    check(`${t.name}: JSON login returns 200 with a session cookie`, status === 200 && Boolean(token),
+      `HTTP ${status} (expected 200; 302 means the JSON branch of /api/login is gone), ` +
+      `cookie ${token ? "present" : "MISSING"}`);
+
+    // The second account is optional, but a CONFIGURED one that cannot sign in
+    // is a failure, not a skip: everything downstream would otherwise report
+    // "not configured", which would be untrue and would hide the real problem.
+    const SECOND_IN = `${t.name}: second account signs in`;
+    if (!t.second.email || !t.second.password) {
+      skip(SECOND_IN, `SECOND_EMAIL/SECOND_PASSWORD not set in ${t.secrets} — tenancy-isolation checks will skip`);
+    } else {
+      const two = await login(t, t.second.email, t.second.password);
+      t.second.token = two.token || null;
+      check(SECOND_IN, two.status === 200 && Boolean(two.token),
+        `HTTP ${two.status}, cookie ${two.token ? "present" : "MISSING"}`);
+    }
   } catch (e) {
     if (e instanceof Unreachable) {
       sawUnreachable = true;
@@ -282,17 +339,44 @@ async function invariants(t) {
       `HTTP ${res.status}, ${body.length} bytes, "Sign in" ${body.includes("Sign in") ? "present" : "MISSING"}`);
   }
   {
-    // A password that cannot collide with the real one. The real value is never
+    // Values that cannot collide with the real ones. Neither real value is ever
     // echoed anywhere in this file.
-    const res = await request(t, "/api/login", {
-      method: "POST",
-      auth: false,
-      body: { password: `wrong-passphrase-${Date.now()}-${Math.random().toString(36).slice(2)}` },
-    });
-    const cookie = String(res.headers.get("set-cookie") || "");
-    const issued = /session=[^;]+/.test(cookie);
-    check(`${t.name}: wrong password is 401 and issues no cookie`, res.status === 401 && !issued,
-      `HTTP ${res.status}, cookie ${issued ? "ISSUED" : "none"}`);
+    const nonce = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const attempts = [
+      ["wrong password", { email: t.email, password: `wrong-passphrase-${nonce}` }],
+      // The email half is a credential too since 010. This pairs the CORRECT
+      // passphrase with an address that owns nothing, which is what would catch
+      // a handler that verified the password against whatever row it found
+      // first — or against SITE_PASSWORD without checking which user asked.
+      // The bootstrap fallback makes that a live risk: SITE_PASSWORD really is
+      // accepted, for exactly one user, and "for exactly one user" is the part
+      // a refactor can drop without anything else looking different.
+      ["wrong email with the correct passphrase", { email: `nobody-${nonce}@example.invalid`, password: t.password }],
+    ];
+    for (const [label, body] of attempts) {
+      const res = await request(t, "/api/login", { method: "POST", auth: false, body });
+      const cookie = String(res.headers.get("set-cookie") || "");
+      const issued = /session=[^;]+/.test(cookie);
+      check(`${t.name}: ${label} is 401 and issues no cookie`, res.status === 401 && !issued,
+        `HTTP ${res.status}, cookie ${issued ? "ISSUED" : "none"}`);
+    }
+  }
+  {
+    // A pre-010 session payload: {exp} and no `uid`. functions/lib/auth.js
+    // rejects those deliberately, so that a cookie minted when one passphrase
+    // opened every profile cannot keep ambient access under the new rules.
+    //
+    // This harness cannot SIGN a token — SESSION_SECRET lives in the Cloudflare
+    // environment, not in any file it reads — so it cannot present a correctly
+    // signed no-uid token and prove the `uid` branch specifically. What it
+    // asserts is the observable behaviour: a cookie carrying that payload does
+    // not open the API. A pass means "this shape gets nothing"; it does not on
+    // its own separate the signature check from the uid check.
+    const payload = Buffer.from(JSON.stringify({ exp: Date.now() + 86400000 })).toString("base64url");
+    const preMigration = `${payload}.${"A".repeat(43)}`;
+    const res = await request(t, "/api/companies", { token: preMigration });
+    check(`${t.name}: a session with no uid claim (pre-010 shape) is refused`, res.status === 401,
+      `HTTP ${res.status} (expected 401)`);
   }
 
   // -- row shape ----------------------------------------------------------
@@ -407,6 +491,168 @@ async function cloneOnly(t) {
 
   // -- the progress-isolation invariant -----------------------------------
   await progressIsolation(t, havePlist ? profiles.data : null, NOT_PRESENT);
+
+  // -- the tenancy-isolation invariants -----------------------------------
+  await tenancyIsolation(t, havePlist ? profiles.data : null, NOT_PRESENT);
+}
+
+/** A profile the caller does not own must not be reachable, and nothing that
+ *  identifies its owner may reach the caller.
+ *
+ *  Migration 010 turned `?profile_id=` from a view filter into an authorisation
+ *  decision. `resolveProfileId` is the single place that decides it, so these
+ *  probe the endpoints that route through it rather than one of them: the bug
+ *  this whole section exists to catch is a handler that resolves a profile
+ *  without passing a user id, and a check on /api/companies alone says nothing
+ *  about the other nine.
+ *
+ *  Two halves, because they can fail independently:
+ *
+ *  - The UNLISTED half needs no second account. It asks for profile ids the
+ *    caller's own listing did not return; whatever those are (someone else's,
+ *    or nothing at all) a 200 is wrong. On a deployment where the caller really
+ *    does own every id it skips, because there is then nothing to ask for.
+ *  - The CROSS-TENANT half needs a real second account and skips loudly without
+ *    one. With a single account every row in `profiles` belongs to the caller,
+ *    so a "nothing leaked" verdict would be free rather than earned — and a
+ *    check that cannot fail is worse than no check, because it reads green.
+ */
+async function tenancyIsolation(t, profileList, NOT_PRESENT) {
+  const SCOPED_PATHS = ["/api/companies", "/api/analytics", "/api/export"];
+  const UNLISTED = `${t.name}: ?profile_id= for a profile the caller does not own never answers 200`;
+  const FOREIGN = `${t.name}: another user's profile is 403 on every profile-scoped endpoint`;
+  const OWN_LIST = `${t.name}: GET /api/profiles lists only the caller's own profiles`;
+  const NO_IDENTITY = `${t.name}: /similar carries no identity field on any row`;
+  const NOT_NAMED = `${t.name}: /similar returns no name for a profile the caller does not own`;
+  const NEEDS_SECOND =
+    `no second account configured — set SECOND_EMAIL and SECOND_PASSWORD in ${t.secrets} ` +
+    `(or JO_SECOND_EMAIL/JO_SECOND_PASSWORD); see REGRESSION.md`;
+
+  if (!profileList) {
+    const why = t.profiles ? `${NOT_PRESENT} — no profile list` : NOT_PRESENT;
+    for (const name of [UNLISTED, FOREIGN, OWN_LIST, NO_IDENTITY, NOT_NAMED]) skip(name, why);
+    return;
+  }
+
+  const mineIds = profileList.map((p) => p.id);
+  const owned = new Set(mineIds);
+
+  /* -- ids the caller's own listing did not return ------------------------ */
+  // The lookahead is what keeps this from ever going vacuous: the ids just past
+  // the caller's highest are unowned by construction, so there is always
+  // something to ask for even on a deployment with exactly one account and one
+  // profile. This check therefore never skips.
+  const highest = mineIds.length ? Math.max(...mineIds) : 0;
+  const probes = [];
+  for (let id = 1; id <= highest + PROFILE_ID_LOOKAHEAD; id++) if (!owned.has(id)) probes.push(id);
+
+  // 403 (someone else's) and 404 (no such profile) are both correct refusals;
+  // only a 200 is a finding, and it is the same finding either way — an id the
+  // caller was not shown answered with a board. Distinguishing the two would
+  // mean asserting which one a probe id happens to be, which this cannot know.
+  const reachable = [];
+  for (const id of probes) {
+    for (const p of SCOPED_PATHS) {
+      const res = await request(t, `${p}?profile_id=${id}`);
+      if (res.status === 200) reachable.push(`${p}?profile_id=${id}`);
+    }
+  }
+  check(UNLISTED, reachable.length === 0,
+    reachable.length
+      ? `answered 200: ${listCapped(reachable)}`
+      : `${probes.length} unlisted id(s) x ${SCOPED_PATHS.length} endpoints, all refused`);
+
+  /* -- what the second account can see ------------------------------------ */
+  const second = t.second || {};
+  if (!second.token) {
+    const why = second.email ? "the configured second account did not sign in" : NEEDS_SECOND;
+    skip(FOREIGN, why);
+    skip(OWN_LIST, why);
+  } else {
+    const theirs = await getJson(t, "/api/profiles", { token: second.token });
+    if (theirs.status !== 200 || !Array.isArray(theirs.data)) {
+      fail(OWN_LIST, `second account GET /api/profiles answered HTTP ${theirs.status}${theirs.error ? `, ${theirs.error}` : ""}`);
+      skip(FOREIGN, "the second account's profile list could not be read");
+    } else if (!theirs.data.length) {
+      const why = "the second account owns no profiles — create one under it so the two listings differ";
+      skip(OWN_LIST, why);
+      skip(FOREIGN, why);
+    } else {
+      const theirIds = theirs.data.map((p) => p.id);
+      const shared = theirIds.filter((id) => owned.has(id));
+      // An overlap means the listing is not scoped by owner, and every row it
+      // returned carries the identity fields rowToProfile fills in — email,
+      // phone, linkedin, resume_url — for a person who is not the caller.
+      check(OWN_LIST, shared.length === 0,
+        shared.length
+          ? `both accounts were shown profile id(s): ${listCapped(shared)}`
+          : `${mineIds.length} own vs ${theirIds.length} second-account profile(s), no id in common`);
+
+      // Aimed at a profile that provably belongs to the other account, so 403
+      // is the only right answer — 404 here would mean the row vanished
+      // between the two reads, and 200 is the pre-010 hole reopening.
+      const target = theirIds[0];
+      const results = [];
+      for (const p of SCOPED_PATHS) {
+        const res = await request(t, `${p}?profile_id=${target}`);
+        results.push([`${p}?profile_id=${target}`, res.status]);
+      }
+      // The path-parameter form goes through assertProfileOwner rather than
+      // resolveProfileId, so it is a separate door onto the same question.
+      const direct = await request(t, `/api/profile/${target}`);
+      results.push([`/api/profile/${target}`, direct.status]);
+
+      const wrong = results.filter(([, status]) => status !== 403);
+      check(FOREIGN, wrong.length === 0,
+        `profile ${target} belongs to the second account; ` +
+        results.map(([what, status]) => `${what} -> HTTP ${status}`).join(", ") +
+        ` (expected 403 on each)`);
+    }
+  }
+
+  /* -- /similar deliberately looks across tenants; it must not describe them */
+  const from = profileList.find((p) => p.is_default === 1 || p.is_default === true) || profileList[0];
+  if (!from) {
+    skip(NO_IDENTITY, "the caller owns no profile to compare from");
+    skip(NOT_NAMED, "the caller owns no profile to compare from");
+    return;
+  }
+  const sim = await getJson(t, `/api/profile/${from.id}/similar`);
+  if (sim.status !== 200 || !Array.isArray(sim.data)) {
+    fail(NO_IDENTITY, `GET /api/profile/${from.id}/similar answered HTTP ${sim.status}${sim.error ? `, ${sim.error}` : ""}`);
+    skip(NOT_NAMED, "the similar listing could not be read");
+    return;
+  }
+
+  // PROFILE-CONTRACT.md pins the response to {id, similarity, shared_leads,
+  // owned} plus `name` on an owned row. Identity is checked on EVERY row, not
+  // just the unowned ones: a handler that started spreading the whole profile
+  // row would leak on both branches, and on a single-account deployment the
+  // owned rows are the only ones that exist to notice it on.
+  const IDENTITY_FIELDS = ["email", "phone", "linkedin", "github", "portfolio", "resume_url", "notice_period"];
+  const leaked = [];
+  for (const row of sim.data) {
+    for (const f of IDENTITY_FIELDS) if (row[f] !== undefined) leaked.push(`${row.id}.${f}`);
+  }
+  check(NO_IDENTITY, leaked.length === 0,
+    leaked.length
+      ? `present on the response: ${listCapped(leaked)}`
+      : `${sim.data.length} row(s) x ${IDENTITY_FIELDS.length} fields, none present`);
+
+  const foreign = sim.data.filter((r) => r.owned === false);
+  if (!foreign.length) {
+    skip(NOT_NAMED,
+      `all ${sim.data.length} similar profile(s) belong to the caller, so nothing here is cross-tenant — ${NEEDS_SECOND}`);
+  } else {
+    // `name` is the sharpest identifier on the row: profiles are named after
+    // people, so returning it for a profile the caller does not own turns this
+    // endpoint into a directory any signed-in tenant can enumerate.
+    const named = foreign.filter((r) => r.name !== undefined);
+    check(NOT_NAMED, named.length === 0,
+      named.length
+        ? `named unowned profile(s): ${listCapped(named.map((r) => r.id))}`
+        : `${foreign.length} unowned row(s), none named`);
+  }
 }
 
 /** Setting a stage under one profile must not change it under another.

@@ -11,7 +11,15 @@ export async function onRequestPatch(context) {
 
   const fields = [];
   const values = [];
-  const editable = { li: "li", note: "note", land: "land", section: "section" };
+  // `note` is deliberately absent: it is the one field on this row that a human
+  // writes, and since 006/008 one company row is visible to every profile that
+  // adopted the lead, so writing it here published one tenant's note to all of
+  // them. Migration 011 moved the lead note to `progress.lead_note`, keyed
+  // (profile_id, company_id) — it is written through PUT /api/progress/:id,
+  // which resolves the asking profile first. The remaining fields are facts
+  // about the company itself (its LinkedIn, landing page, contact-quality
+  // section), shared on purpose.
+  const editable = { li: "li", land: "land", section: "section" };
   for (const [key, col] of Object.entries(editable)) {
     if (key in body) { fields.push(`${col} = ?`); values.push(body[key]); }
   }

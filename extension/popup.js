@@ -34,6 +34,22 @@ function busy(state) {
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+const hostOf = (url) => String(url || '').replace(/^https?:\/\//, '');
+
+/** Who and where the grab view is acting as. The account is the useful half now
+ *  that one dashboard serves several people, but a saved-passphrase-only upgrade
+ *  has no email to show, so the host stays as the fallback. */
+function identify(email, serverUrl) {
+  const who = $('who');
+  who.textContent = email || hostOf(serverUrl);
+  who.title = email ? `${email} at ${hostOf(serverUrl)}` : hostOf(serverUrl);
+  $('openApp').innerHTML = `<a href="${escapeHtml(serverUrl)}" target="_blank">Open the dashboard</a>`;
+}
+
+// The email is remembered across sign-out, so on most visits the passphrase is
+// the only blank left and starting there saves a tab press.
+const focusFirstEmptyField = () => ($('email').value ? $('passphrase') : $('email')).focus();
+
 /** Turn a grab result into the three numbers the task asks for: how many
  *  companies we found, how many we sent, how many the dashboard skipped. */
 function render(result) {
@@ -91,15 +107,25 @@ function pollWhileRunning() {
 (async function init() {
   const status = await send({ type: 'status' });
   $('serverUrl').value = status.serverUrl || DEFAULT_BASE;
+  $('email').value = status.email || '';
 
   if (!status.signedIn) {
     show('login');
-    $('passphrase').focus();
+    if (status.needsEmail) {
+      // Upgraded from the single-passphrase dashboard. Without this the popup
+      // looks like it simply forgot the sign-in, and the obvious response -
+      // retyping the same passphrase - is not the missing half.
+      msg(
+        $('loginMsg'),
+        'The dashboard now signs you in by email. Add yours and confirm your passphrase to reconnect.',
+        'info',
+      );
+    }
+    focusFirstEmptyField();
     return;
   }
 
-  $('who').textContent = (status.serverUrl || DEFAULT_BASE).replace(/^https?:\/\//, '');
-  $('openApp').innerHTML = `<a href="${escapeHtml(status.serverUrl || DEFAULT_BASE)}" target="_blank">Open the dashboard</a>`;
+  identify(status.email, status.serverUrl || DEFAULT_BASE);
   show('grab');
 
   if (status.running) {
@@ -117,8 +143,10 @@ function pollWhileRunning() {
 
 // ── Sign in ──────────────────────────────────────────────────
 $('loginBtn').addEventListener('click', async () => {
+  const email = $('email').value.trim();
   const passphrase = $('passphrase').value;
   const serverUrl = ($('serverUrl').value.trim() || DEFAULT_BASE).replace(/\/+$/, '');
+  if (!email) return msg($('loginMsg'), 'Enter the email you sign in to the dashboard with.', 'err');
   if (!passphrase) return msg($('loginMsg'), 'Enter your dashboard passphrase.', 'err');
 
   let origin;
@@ -142,25 +170,38 @@ $('loginBtn').addEventListener('click', async () => {
       }
     }
 
-    const res = await send({ type: 'login', passphrase, serverUrl });
+    const res = await send({ type: 'login', email, passphrase, serverUrl });
     if (res.error) return msg($('loginMsg'), escapeHtml(res.error), 'err');
 
-    $('who').textContent = serverUrl.replace(/^https?:\/\//, '');
-    $('openApp').innerHTML = `<a href="${escapeHtml(serverUrl)}" target="_blank">Open the dashboard</a>`;
+    identify(email, serverUrl);
     msg($('loginMsg'), '');
     $('passphrase').value = '';
     show('grab');
 
+    // Both of these are "you are in, but read this" - collected so a login that
+    // hits both does not show one warning and silently drop the other.
+    const notes = [];
+
+    // Signed in on the dashboard's bootstrap passphrase, which every account
+    // seeded that way shares. Setting a real one is a dashboard-only operation;
+    // the extension deliberately does not offer to do it from here.
+    if (res.mustSetPassword) {
+      notes.push(
+        'You signed in with the dashboard\'s bootstrap passphrase and have no passphrase of your own yet. ' +
+          'Open the dashboard and set one, then sign in here again with it.',
+      );
+    }
+
     // The session cookie is SameSite=Strict, so Chrome may refuse to attach it
     // to the extension's own requests. Say so now rather than at grab time.
     if (res.cookieReachesApi === false) {
-      msg(
-        $('grabMsg'),
-        "Signed in, but Chrome will not send the dashboard's session cookie from the extension. " +
+      notes.push(
+        "Chrome will not send the dashboard's session cookie from the extension. " +
           'Keep the dashboard open in a tab (signed in) and grabs will be posted through that tab instead.',
-        'info',
       );
     }
+
+    if (notes.length) msg($('grabMsg'), notes.map(escapeHtml).join('<br /><br />'), 'info');
   } catch (e) {
     msg($('loginMsg'), escapeHtml((e && e.message) || 'Sign-in failed.'), 'err');
   } finally {
@@ -168,16 +209,18 @@ $('loginBtn').addEventListener('click', async () => {
   }
 });
 
-$('passphrase').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') $('loginBtn').click();
-});
+for (const id of ['email', 'passphrase']) {
+  $(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('loginBtn').click();
+  });
+}
 
 // ── Sign out ─────────────────────────────────────────────────
 $('logoutBtn').addEventListener('click', async () => {
   await send({ type: 'logout' });
   msg($('grabMsg'), '');
   show('login');
-  $('passphrase').focus();
+  focusFirstEmptyField();
 });
 
 // ── Grab ─────────────────────────────────────────────────────
@@ -192,7 +235,7 @@ async function startGrab(type, label) {
   if (result && result.needLogin) {
     busy(false);
     show('login');
-    return msg($('loginMsg'), 'Sign in again to keep grabbing.', 'err');
+    return msg($('loginMsg'), escapeHtml(result.error || 'Sign in again to keep grabbing.'), 'err');
   }
   busy(false);
   render(result);

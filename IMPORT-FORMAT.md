@@ -20,7 +20,7 @@ One company per row. Only `name` and `tab` are required.
 | `wa` | no | WhatsApp number(s), `;`-separated, digits only with country code, e.g. `919611738802`. |
 | `li` | no | LinkedIn company handle (e.g. `zethic-tech`) or a full URL. |
 | `land` | no | Landline, free text. |
-| `note` | no | Why they're worth contacting. Wrap in `"` if it contains a comma. |
+| `note` | no | Why they're worth contacting. Wrap in `"` if it contains a comma. Since migration 011 this lands on **your profile's** note for the lead, not on the shared company row — importing the same file as two different users gives each their own copy. |
 | `job_url` | no | Link to a live opening. |
 | `job_title` | no | Title of that opening. |
 | `stage` | no | `none` (default) · `contacted` · `replied` · `interviewing` · `offer` · `rejected` |

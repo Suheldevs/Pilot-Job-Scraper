@@ -416,43 +416,47 @@
 "use strict";
 
 /* ------------------------------------------------------------------ me --- */
+/* Whoever is signed in — not whoever wrote this. These keys are the contract
+   renderNav() and fill() read against, so they are declared here and filled by
+   setIdentity() from the active profile. They start blank and stay blank for
+   anything the profile leaves empty: a literal default would sign one tenant's
+   name, phone and resume link onto every other tenant's drafts, which is the
+   leak this replaced. Mutated in place, never reassigned, so switching profile
+   reaches the next draft rather than the next reload. */
 const ME = {
-  name:    "Mohd Suhel",
-  role:    "Full-stack developer (React / Node)",
-  years:   "2",
-  company: "Jamtech Technologies",
-  stack:   "React, Next.js, React Native, Node, Express, MongoDB",
-  target:  "Full-stack / MERN / AI-integrated, 1–3 yr band",
-  email:   "mohdsuhel.dev@gmail.com",
-  phone:   "919519838720",
-  linkedin:"https://www.linkedin.com/in/mohd-suhel-4b2072257",
-  github:  "https://github.com/Suheldevs",
-  folio:   "https://mohdsuhel.netlify.app/",
-  resume:  "https://drive.google.com/file/d/1_-uaMxN4XP4evy416qIrA0HlUv5YKWti/view?usp=sharing",
-  notice:  "30 days"
+  name:    "",
+  role:    "",
+  years:   "",
+  company: "",
+  stack:   "",
+  target:  "",
+  email:   "",
+  phone:   "",
+  linkedin:"",
+  github:  "",
+  folio:   "",
+  resume:  "",
+  notice:  ""
 };
 
 const DEFAULT_TPL =
-"Hello, I am {name} — a full-stack developer with {years} years' experience, currently at " +
-"Jamtech Technologies. I work on AI-integrated systems: AI workflows, agent pipelines and " +
-"vector-search features, built on React / Next.js / Node. I wanted to check if {company} has " +
-"an opening for a full-stack or AI-focused developer. May I send my resume here?";
+"Hello, I am {name} — {role} with {years} years' experience ({employer}). " +
+"I work with {stack}. I wanted to check if {company} has an opening I would suit. " +
+"May I send my resume here?";
 
-const SUBJECT = "Full-stack / AI developer (2 yrs, React · Node) — application";
+const SUBJECT = "{role} ({years} yrs, {stack}) — application";
 
 /* WhatsApp is read on a phone, usually by someone who did not ask to hear
    from you — so it is short, leads with the ask, and never pastes a CV. */
 const DEFAULT_WA =
-"Hi, I am {name} — a full-stack developer ({years} yrs, React / Node), currently at " +
-"Jamtech Technologies. Does {company} have an opening for a full-stack or AI-focused " +
-"developer? Happy to send my CV if useful.";
+"Hi, I am {name} — {role} ({years} yrs, {stack}) ({employer}). " +
+"Does {company} have an opening I would suit? Happy to send my CV if useful.";
 
 /* LinkedIn connection notes are capped near 300 characters, so this has to be
    tighter still. */
 const DEFAULT_LI =
-"Hi, I am {name}, a full-stack developer ({years} yrs, React / Node) at Jamtech " +
-"Technologies. I work on AI-integrated systems. Would you be open to a quick chat " +
-"about full-stack roles at {company}?";
+"Hi, I am {name}, {role} ({years} yrs, {stack}) ({employer}). " +
+"Would you be open to a quick chat about roles at {company}?";
 
 const TABS = [["blr","Bangalore"],["pune","Pune"],["lko","Lucknow"],["noida","Noida / NCR"],["rem","Remote"]];
 const TAB_LABEL = Object.fromEntries(TABS);
@@ -583,12 +587,27 @@ function pretty(w){
   return d.length === 12 ? "+91 "+d.slice(2,7)+" "+d.slice(7) : "+"+d;
 }
 function fill(tplStr, companyName){
-  return tplStr
-    .replace(/\{company\}/g, companyName)
-    .replace(/\{name\}/g,    ME.name)
-    .replace(/\{role\}/g,    ME.role)
-    .replace(/\{years\}/g,   ME.years)
-    .replace(/\{stack\}/g,   ME.stack);
+  return tidy(tplStr
+    .replace(/\{company\}/g,  companyName)
+    .replace(/\{name\}/g,     ME.name)
+    .replace(/\{role\}/g,     ME.role)
+    .replace(/\{years\}/g,    ME.years)
+    .replace(/\{stack\}/g,    ME.stack)
+    .replace(/\{employer\}/g, ME.company));
+}
+
+/* Identity fields are all optional, so any token can expand to "". Without this
+   a blank one leaves visible debris — " ()", a doubled space, a comma against a
+   full stop — in a message the user is one click from sending. Cheaper to clean
+   the seam here than to make every template branch on which fields are set. */
+function tidy(str){
+  return str
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s+([.,?!])/g, "$1")
+    .replace(/([(\[])\s+/g, "$1")
+    .replace(/,\s*(?=[.,?!])/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 let toastTimer = null;
 function toast(msg){
@@ -620,12 +639,17 @@ async function api(path, options = {}){
 }
 
 async function loadAll(){
-  const [companies, stats, tpls] = await Promise.all([
+  const [companies, stats, tpls, profiles] = await Promise.all([
     api("/api/companies"),
     api("/api/analytics"),
     // Templates are non-critical: if that endpoint is unavailable the
     // dashboard should still render with the built-in defaults.
     api("/api/templates").catch(() => null),
+    // The sidebar and every message draft need the identity from the first
+    // paint, so it cannot wait for the Profile view to be opened. The list
+    // rows already carry the identity fields, which is why this is one request
+    // and not a list plus a fetch of the active one.
+    api("/api/profiles").catch(() => null),
   ]);
   COMPANIES = companies;
   STATS = stats;
@@ -639,6 +663,7 @@ async function loadAll(){
     TPL_MIGRATED = Boolean(tpls.migrated);
   }
   TPL = TPLS.email.body;
+  if(profiles) adoptProfiles(profiles);
 }
 
 /* ---------------------------------------------------------------- nav ---- */
@@ -669,11 +694,21 @@ function renderNav(){
     host.append(b);
   }
 
-  $("brand-sub").textContent = ME.name+" · "+ME.years+" yrs";
-  $("sidefoot").innerHTML =
-    `${esc(ME.role)}<br>${esc(ME.target)}<br>Notice: ${esc(ME.notice)}<br>` +
-    `<a href="${esc(ME.folio)}" target="_blank" rel="noopener">Portfolio</a> · ` +
-    `<a href="${esc(ME.resume)}" target="_blank" rel="noopener">Resume</a>`;
+  /* A blank identity is a real state — the profile endpoint can be down, and a
+     freshly created profile has empty fields — so each line is dropped rather
+     than rendered hollow. An empty href would link back to this page, which
+     reads as a broken portfolio link. */
+  const sub = [ME.name, ME.years && ME.years+" yrs"].filter(Boolean).join(" · ");
+  $("brand-sub").textContent = sub || "No profile loaded";
+  const foot = [];
+  if(ME.role)   foot.push(esc(ME.role));
+  if(ME.target) foot.push(esc(ME.target));
+  if(ME.notice) foot.push("Notice: "+esc(ME.notice));
+  const links = [];
+  if(ME.folio)  links.push(`<a href="${esc(ME.folio)}" target="_blank" rel="noopener">Portfolio</a>`);
+  if(ME.resume) links.push(`<a href="${esc(ME.resume)}" target="_blank" rel="noopener">Resume</a>`);
+  if(links.length) foot.push(links.join(" · "));
+  $("sidefoot").innerHTML = foot.join("<br>");
 }
 
 /* -------------------------------------------------------------- charts --- */
@@ -1552,7 +1587,14 @@ function viewData(host){
   const scr = panel("Scraper", "runs every 6h");
   scr.body.innerHTML = `
     <p class="hint mb3">Pushes straight in — no file step:</p>
-    <div class="codeblock">python push.py --url ${esc(location.origin)} --password '&lt;your passphrase&gt;'</div>
+    <div class="codeblock">export JO_URL=${esc(location.origin)}
+export JO_EMAIL=&lt;your email&gt;
+export JO_PASSWORD=&lt;your passphrase&gt;
+python push.py</div>
+    <p class="hint mt3">Flags work too — <code>--url --email --password</code> —
+      but a passphrase in an argument is readable in <code>ps</code> by everyone
+      on the host and is kept in your shell history, so the environment is the
+      better form.</p>
     <p class="hint mt3">Four layers: aggregator APIs and LinkedIn search find
       companies, then Greenhouse/Lever/Ashby boards are checked for the same company,
       then contacts are pulled out of the job description, then each lead is graded.
@@ -1694,13 +1736,59 @@ let PROFILE_ID = Number(localStorage.getItem("jo:profile")) || 0;
 let PDRAFT = null;                                          // live edit buffer
 let PBASE = null;                                           // as loaded, for diffing
 
+/** ME is filled here and nowhere else. Object.assign rather than a fresh
+ *  object because renderNav() and fill() read ME at call time: reassigning it
+ *  would leave a stale copy signing the next message with the last tenant. */
+function setIdentity(p){
+  const q = p || {};
+  const list = (v) => (Array.isArray(v) ? v.filter(Boolean) : []);
+  const roles = list(q.search_roles).join(" / ");
+  /* The sidebar's experience-band line has no single profile field behind it,
+     so it is composed from the two that carry the same meaning. 0–99 is the
+     "no constraint" default the API hands back, and printing that as a band
+     would state a limit the profile does not actually have. */
+  const lo = Number(q.exp_min) || 0;
+  const hi = Number(q.exp_max) || 0;
+  const band = (lo > 0 || (hi > 0 && hi < 99)) ? `${lo}–${hi} yr band` : "";
+  Object.assign(ME, {
+    name:    q.full_name || q.name || "",
+    role:    q.headline || "",
+    years:   (q.years == null || q.years === "") ? "" : String(q.years),
+    company: q.current_company || "",
+    /* must_have is what the AI drafter already calls the core stack, so {stack}
+       expands to the same list whether a draft is hand-written or generated. */
+    stack:   list(q.must_have).join(", "),
+    target:  [roles, band].filter(Boolean).join(", "),
+    email:   q.email || "",
+    phone:   q.phone || "",
+    linkedin:q.linkedin || "",
+    github:  q.github || "",
+    folio:   q.portfolio || "",
+    resume:  q.resume_url || "",
+    notice:  q.notice_period || "",
+  });
+  renderNav();
+}
+
+/** One place decides which profile is active. Boot, the switcher and profile
+ *  creation all land here, so the name in the sidebar and the name pasted into
+ *  a draft can never disagree with the tab that looks selected. */
+function adoptProfiles(data){
+  PROFILES = Array.isArray(data) ? data : ((data && data.profiles) || []);
+  if(PROFILES.length && !PROFILES.some(p => Number(p.id) === PROFILE_ID)){
+    PROFILE_ID = Number((PROFILES.find(p => p.is_default) || PROFILES[0]).id);
+  }
+  setIdentity(PROFILES.find(p => Number(p.id) === PROFILE_ID));
+  return PROFILES;
+}
+
 const P_IDENTITY = [
-  ["full_name",       "Full name",              "Mohd Suhel"],
+  ["full_name",       "Full name",              "Your name"],
   ["headline",        "Headline",               "Full-stack developer (React / Node)"],
   ["years",           "Years of experience",    "2"],
-  ["current_company", "Current company",        "Jamtech Technologies"],
+  ["current_company", "Current company",        "Where you work now"],
   ["email",           "Email",                  "you@example.com"],
-  ["phone",           "Phone — with country code", "919519838720"],
+  ["phone",           "Phone — with country code", "911234567890"],
   ["linkedin",        "LinkedIn",               "https://www.linkedin.com/in/…"],
   ["github",          "GitHub",                 "https://github.com/…"],
   ["portfolio",       "Portfolio",              "https://…"],
@@ -1852,7 +1940,15 @@ function pArrayField(key, label, placeholder){
 }
 
 function pPayload(){
-  const out = { name: String(PDRAFT.name ?? "").trim() || "Untitled" };
+  // `name` is the profile's LABEL — what the switcher shows when you have more
+  // than one. It is no longer its own field: asking for it right above "Full
+  // name" read as the same question twice. Derived from full_name instead, and
+  // an existing name is preserved so a profile deliberately renamed (say
+  // "Backend roles") is not silently overwritten by its owner's name on save.
+  const label = String(PDRAFT.name ?? "").trim()
+             || String(PDRAFT.full_name ?? "").trim()
+             || "Untitled";
+  const out = { name: label };
   for(const [k] of P_IDENTITY) out[k] = String(PDRAFT[k] ?? "").trim();
   out.years = Number(out.years) || 0;
   for(const k of P_ARRAY_KEYS) out[k] = pArr(k).slice();
@@ -1908,14 +2004,11 @@ function viewProfile(host){
       formHost.textContent = "";
       return;
     }
-    PROFILES = Array.isArray(data) ? data : (data.profiles || []);
+    adoptProfiles(data);
     if(!PROFILES.length){
       list.body.textContent = "";
       list.body.append(notReady("No profiles exist yet.", "GET /api/profiles"));
       return;
-    }
-    if(!PROFILES.some(p => Number(p.id) === PROFILE_ID)){
-      PROFILE_ID = Number((PROFILES.find(p => p.is_default) || PROFILES[0]).id);
     }
 
     list.body.textContent = "";
@@ -1997,6 +2090,9 @@ function viewProfile(host){
       return;
     }
     PBASE = p;
+    /* The single-profile GET wins over the list row, which can lag an edit made
+       in another tab. */
+    setIdentity(p);
     PDRAFT = JSON.parse(JSON.stringify(p));
     for(const k of P_ARRAY_KEYS) if(!Array.isArray(PDRAFT[k])) PDRAFT[k] = [];
     formHost.textContent = "";
@@ -2005,7 +2101,6 @@ function viewProfile(host){
     const id = panel("Identity", "fills your message templates");
     const idg = document.createElement("div");
     idg.className = "grid g2";
-    idg.append(pInput("name", "Profile name", "Mohd Suhel"));
     for(const [k,label,ph] of P_IDENTITY){
       idg.append(pInput(k, label, ph, k === "years" ? "number" : "text"));
     }
@@ -2171,6 +2266,12 @@ function viewProfile(host){
   }
 
   /* ---- similar profiles ---- */
+  /* A profile owned by another user comes back from /api/profile/:id/similar
+     with no name: naming them would turn the endpoint into a directory of
+     everyone's targeting. Adopting across tenants still works — it is the whole
+     point of the feature — so those rows need a label to stand under. */
+  const OTHER_TENANT = "Another user's profile";
+
   async function paintSimilar(){
     sim.body.innerHTML = `<div class="loading">Loading…</div>`;
     let rows;
@@ -2203,11 +2304,14 @@ function viewProfile(host){
       <thead><tr><th>Profile</th><th class="num">Similarity</th>
         <th class="num">Leads it could give</th><th></th></tr></thead>
       <tbody>${listRows.map(r => `<tr>
-        <td class="strong">${esc(r.name)}</td>
+        ${r.owned
+          ? `<td class="strong">${esc(r.name || "Untitled profile")}</td>`
+          : `<td>${esc(OTHER_TENANT)}</td>`}
         <td class="num">${Math.round((Number(r.similarity) || 0) * 100)}%</td>
         <td class="num">${Number(r.shared_leads) || 0}</td>
         <td><button class="btn sm" data-adopt="${esc(r.id)}"
-              data-n="${esc(r.name)}">Adopt these leads</button></td>
+              data-owned="${r.owned ? 1 : 0}"
+              data-n="${esc(r.name || "")}">Adopt these leads</button></td>
       </tr>`).join("")}</tbody></table>`;
     sim.body.append(tbl);
     const note = document.createElement("p");
@@ -2217,8 +2321,15 @@ function viewProfile(host){
     for(const btn of tbl.querySelectorAll("button[data-adopt]")){
       btn.addEventListener("click", async () => {
         const from = Number(btn.dataset.adopt);
-        const label = btn.dataset.n;
-        if(!confirm(`Make ${label}'s matching leads visible to this profile?`)) return;
+        const owned = btn.dataset.owned === "1";
+        /* Lower case because the label is read mid-sentence, both in the
+           question below and in the result note further down. */
+        const label = owned ? (btn.dataset.n || "that profile") : "another user's profile";
+        const ask = owned
+          ? `Make ${label}'s matching leads visible to this profile?`
+          : `Adopt matching leads from another user's profile? Their leads become ` +
+            `visible here — your own targeting and contact details are not shared back.`;
+        if(!confirm(ask)) return;
         note.textContent = "Adopting…";
         try{
           const r = await api("/api/profile/" + encodeURIComponent(PROFILE_ID) + "/adopt", {
