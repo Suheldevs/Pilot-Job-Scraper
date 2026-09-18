@@ -13,6 +13,24 @@ if not exist ".push-credentials" (
 
 for /f "usebackq tokens=1,* delims==" %%a in (".push-credentials") do set "%%a=%%b"
 
+REM push.py needs all three of these. Since the dashboard went multi-tenant,
+REM JO_EMAIL is required too - an older .push-credentials with only JO_URL and
+REM JO_PASSWORD makes push.py exit at argument parsing before it scrapes
+REM anything. Name the missing one plainly here instead of leaving a bare
+REM "error: --email required" buried in the log.
+set "MISSING="
+if not defined JO_URL      set "MISSING=%MISSING% JO_URL"
+if not defined JO_EMAIL    set "MISSING=%MISSING% JO_EMAIL"
+if not defined JO_PASSWORD set "MISSING=%MISSING% JO_PASSWORD"
+if defined MISSING (
+  echo. >> scrape.log
+  echo ======== [%DATE% %TIME%] scrape aborted ======== >> scrape.log
+  echo .push-credentials is missing:%MISSING% >> scrape.log
+  echo Add the missing line(s) to .push-credentials, e.g. JO_EMAIL=you@example.com >> scrape.log
+  echo (the dashboard is multi-tenant now - JO_EMAIL picks whose leads these become.) >> scrape.log
+  exit /b 1
+)
+
 echo. >> scrape.log
 echo ======== [%DATE% %TIME%] scrape start ======== >> scrape.log
 

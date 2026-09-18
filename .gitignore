@@ -16,3 +16,4 @@ seed-data.sql
 .profile-cache.json
 .secrets-78d.txt
 dump-*.sql
+profile.json
