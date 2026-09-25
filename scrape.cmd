@@ -26,8 +26,8 @@ if defined MISSING (
   echo. >> scrape.log
   echo ======== [%DATE% %TIME%] scrape aborted ======== >> scrape.log
   echo .push-credentials is missing:%MISSING% >> scrape.log
-  echo Add the missing line(s) to .push-credentials, e.g. JO_EMAIL=you@example.com >> scrape.log
-  echo (the dashboard is multi-tenant now - JO_EMAIL picks whose leads these become.) >> scrape.log
+  echo Add the missing line^(s^) to .push-credentials, e.g. JO_EMAIL=you@example.com >> scrape.log
+  echo ^(the dashboard is multi-tenant now - JO_EMAIL picks whose leads these become.^) >> scrape.log
   exit /b 1
 )
 
