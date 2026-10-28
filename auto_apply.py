@@ -46,6 +46,7 @@ import json
 import random
 import re
 import smtplib
+import subprocess
 import sys
 import time
 from email.message import EmailMessage
@@ -58,6 +59,7 @@ from pilot_client import Dashboard, load_creds
 HERE = Path(__file__).resolve().parent
 STATE = HERE / "apply_state.json"
 HARD_DAILY_CAP = 50
+HEADS_UP_SECONDS = 120          # pause between the heads-up push and the first send
 
 # Keep in step with AUTO_DEFAULTS in index.html.
 DEFAULTS = {
@@ -421,6 +423,30 @@ def main() -> int:
         report(f"outside the send window — {used}/{limit} sent today")
         return 0
 
+    # ---- 2-minute heads-up ------------------------------------------------------
+    # A real run first asks a dry run of itself who it would email (it walks the
+    # same filters and quota, sends and writes nothing), pushes that list, waits
+    # HEADS_UP_SECONDS, then re-reads the on/off switch so turning auto-apply off
+    # in the dashboard during the wait cancels the batch.
+    if not args.dry_run:
+        out = subprocess.run([sys.executable, "-u", str(Path(__file__).resolve()), "--dry-run"],
+                             capture_output=True, text=True, cwd=str(HERE)).stdout
+        planned = [ln.strip() for ln in out.splitlines()
+                   if ln.startswith(("  applied -> ", "  follow-up -> "))]
+        if planned:
+            lines = [ln.replace("applied -> ", "").replace("follow-up -> ", "follow-up: ") for ln in planned]
+            dash.notify("applied",
+                        f"Emailing {len(lines)} in 2 minutes" + (" (test mode — sent to you)" if test else ""),
+                        "\n".join("• " + ln for ln in lines)[:1900]
+                        + "\nTurn auto-apply off in the dashboard to cancel.", "/")
+            log(f"heads-up sent for {len(lines)} email(s); waiting {HEADS_UP_SECONDS}s")
+            time.sleep(HEADS_UP_SECONDS)
+            cfg = {**DEFAULTS, **(dash.setting("auto_apply") or {})}
+            if not cfg["enabled"]:
+                report("cancelled — auto-apply was switched off during the heads-up wait")
+                dash.notify("applied", "Auto-apply cancelled", "Switched off during the 2-minute wait; nothing sent.", "/")
+                return 0
+
     sent_now = 0
     applied_names = []
 
@@ -465,6 +491,8 @@ def main() -> int:
             record(s["company"], to, "follow-up", "sent" + (" (dry run)" if args.dry_run else ""))
             log_remote("update", {"company_id": cid, "followup_at": iso_to_ms(s["followup_at"])})
             log(f"  follow-up -> {s['company']} <{to}>")
+            if not args.dry_run:
+                dash.notify("applied", f"Follow-up sent to {s['company']}", f"to {to}", "/")
             if not args.dry_run:
                 state["days"][today] = used + sent_now
                 save_state(state)
@@ -548,6 +576,9 @@ def main() -> int:
         record(name, dest, "application" + (" (test)" if test else ""),
                "sent" + (" (dry run)" if args.dry_run else ""))
         log(f"  applied -> {name} <{dest}>" + (f"  [{job}]" if job else ""))
+        if not args.dry_run:
+            dash.notify("applied", f"Emailed {name}" + (" (test)" if test else ""),
+                        (f"{job}\n" if job else "") + f"to {dest}", "/")
         if not test:
             at = dt.datetime.now().isoformat(timespec="seconds")
             state["sent"][cid] = {"company": name, "to": to, "job": job, "subject": subject,
