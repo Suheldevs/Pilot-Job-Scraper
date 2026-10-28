@@ -39,21 +39,28 @@ class LinkedInSource(Source):
         }
 
         with httpx.Client(headers=headers, follow_redirects=True) as client:
-            for keyword in config.ROLE_KEYWORDS:
-                for location in config.LOCATIONS:
-                    jobs.extend(self._search(client, keyword, location))
+            priority = [l for l in config.LOCATIONS if l in config.PRIORITY_LOCATIONS]
+            others = [l for l in config.LOCATIONS if l not in config.PRIORITY_LOCATIONS]
+            for location in priority + others:
+                keywords = list(config.ROLE_KEYWORDS)
+                if location in priority:
+                    keywords += [k for k in config.PRIORITY_EXTRA_KEYWORDS if k not in keywords]
+                for keyword in keywords:
+                    jobs.extend(self._search(client, keyword, location,
+                                             days=14 if location in priority else 7))
                     self._pace()
 
         return jobs
 
-    def _search(self, client: httpx.Client, keyword: str, location: str) -> List[Job]:
+    def _search(self, client: httpx.Client, keyword: str, location: str,
+                days: int = 7) -> List[Job]:
         jobs: List[Job] = []
 
         for page in range(config.LINKEDIN_MAX_PAGES):
             params = {
                 "keywords": keyword,
                 "location": location,
-                "f_TPR": "r604800",   # last 7 days
+                "f_TPR": f"r{days * 86400}",   # last 7 days; 14 for priority cities
                 "f_E": "1,2",         # entry level + associate
                 "start": str(page * 25),
             }

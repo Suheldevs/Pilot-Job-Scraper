@@ -1,8 +1,8 @@
-import { json, badRequest, notFound } from "../../lib/db.js";
+import { json, badRequest, notFound, companyIdParam } from "../../lib/db.js";
 
 export async function onRequestPatch(context) {
   const { request, env, params } = context;
-  const id = params.id;
+  const id = companyIdParam(params);
   const body = await request.json().catch(() => null);
   if (!body) return badRequest("invalid JSON body");
 
@@ -50,7 +50,7 @@ export async function onRequestPatch(context) {
  *  matters more now that adoption rows drive visibility and lead counts. */
 export async function onRequestDelete(context) {
   const { env, params } = context;
-  const id = params.id;
+  const id = companyIdParam(params);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM progress WHERE company_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM stage_history WHERE company_id = ?1").bind(id),

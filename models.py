@@ -71,6 +71,9 @@ PLATFORM_TIER = {
     "keka": "ats",
     # posted by the employer themselves, contact included
     "hackernews": "direct",
+    # a company or its recruiter posting the opening on LinkedIn, usually with
+    # an email or WhatsApp in the text
+    "li_post": "direct",
     # public feeds that re-publish someone else's posting
     "remotive": "aggregator",
     "arbeitnow": "aggregator",

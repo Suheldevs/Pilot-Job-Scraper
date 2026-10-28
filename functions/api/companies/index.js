@@ -68,11 +68,12 @@ export async function onRequestPost(context) {
   await env.DB.batch([
     env.DB.prepare(`
       INSERT INTO companies (id, tab, section, name, li, hr, em, wa, land, job_url, job_title,
-                             source, scraped_from, created_at, platform, profile_id)
-      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+                             source, scraped_from, created_at, platform, profile_id, city)
+      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)
       ON CONFLICT(id) DO UPDATE SET
         li = excluded.li,
-        job_url = excluded.job_url, job_title = excluded.job_title
+        job_url = excluded.job_url, job_title = excluded.job_title,
+        city = CASE WHEN excluded.city <> '' THEN excluded.city ELSE companies.city END
     `).bind(
       id, body.tab, section, body.name, body.li || "",
       JSON.stringify(hr), JSON.stringify(em), JSON.stringify(wa),
@@ -84,7 +85,9 @@ export async function onRequestPost(context) {
       // the board of the profile that just created it. With no `profile_id` in
       // the request this resolves to the default profile, which for the parent
       // database is 1 — the same value the column default gives.
-      profile.id
+      profile.id,
+      // The typed city name, only meaningful for tab "oth" ("Other").
+      body.tab === "oth" ? String(body.city || "").trim().slice(0, 60) : ""
     ),
     // DO UPDATE rather than the old DO NOTHING, because this row now carries the
     // note and re-posting a company the profile already has has to be able to

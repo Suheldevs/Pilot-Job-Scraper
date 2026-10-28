@@ -56,5 +56,37 @@
       "city": "lko",
       "_why": "One of very few Lucknow dev shops in the tracker."
     }
-  ]
+  ],
+  "daily_credit_cap": 35,
+  "_credit_note": "Plan is ~1000 credits/month (~33/day). daily_credit_cap is shared by every Firecrawl feature below; spend is tracked in .firecrawl-state.json.",
+  "linkedin_posts": {
+    "_comment": "Public LinkedIn hiring posts via Firecrawl search (~2 credits per query). Cities run in this order, so the priority cities come first. Post pages themselves are read for free.",
+    "enabled": true,
+    "every_hours": 20,
+    "results_per_query": 10,
+    "max_age": "qdr:w",
+    "cities": {
+      "Lucknow": [
+        "react developer",
+        "node.js developer",
+        "MERN OR \"full stack\" developer"
+      ],
+      "Noida": [
+        "react developer",
+        "node.js developer",
+        "MERN OR \"full stack\" developer"
+      ]
+    }
+  },
+  "website_emails": {
+    "_comment": "For grade A/B leads with no email: find the company's own site (one search, ~2 credits), read its careers/contact pages directly (free), and only fall back to a Firecrawl render (~1 credit) when that finds nothing. Lucknow and Noida leads go first.",
+    "enabled": true,
+    "every_hours": 20,
+    "max_companies_per_run": 6,
+    "retry_after_days": 30,
+    "priority_cities": [
+      "lko",
+      "noida"
+    ]
+  }
 }

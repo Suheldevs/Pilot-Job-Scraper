@@ -13,6 +13,19 @@ export function notFound(message = "not found") {
   return json({ error: message }, { status: 404 });
 }
 
+/** A company id from the route. Pages Functions hand `params` over still
+ *  percent-encoded, and every company id carries a colon ("blr:acme"), which
+ *  the dashboard's encodeURIComponent sends as "%3A" — so the raw param never
+ *  matches a row. slugify() keeps "%" out of real ids, so decoding is safe;
+ *  a malformed escape falls back to the raw value and simply 404s. */
+export function companyIdParam(params) {
+  try {
+    return decodeURIComponent(params.id);
+  } catch {
+    return params.id;
+  }
+}
+
 /** DB row -> API shape (parses the JSON-array columns). */
 export function rowToCompany(row) {
   return {
@@ -25,6 +38,7 @@ export function rowToCompany(row) {
     em: safeArray(row.em),
     wa: safeArray(row.wa),
     land: row.land || "",
+    city: row.city || "",          // typed city name for tab "oth" (migration 013)
     // The lead note lives on `progress` since migration 011, so it is private
     // to the asking profile — `companies.note` is shared by every profile that
     // adopted the lead and is write-dead. The response key stays `note`
@@ -97,6 +111,9 @@ const SECTION_BY_TAB = {
   lko: ["l1", "l2", "l3"],
   noida: ["n1", "n2"],
   rem: ["r1"],
+  // Any other city, typed by hand when adding a company; the name itself lives
+  // in companies.city (migration 013). The scraper never produces this tab.
+  oth: ["o1", "o2", "o3"],
 };
 
 /** Best-guess section (contact-quality tier) for a company we didn't get an explicit section for. */
@@ -107,13 +124,14 @@ export function defaultSection(tab, { hr = [], wa = [], job = null } = {}) {
   return tiers[tiers.length - 1];
 }
 
-export const VALID_TABS = ["blr", "pune", "lko", "noida", "rem"];
+export const VALID_TABS = ["blr", "pune", "lko", "noida", "rem", "oth"];
 export const VALID_STAGES = ["none", "contacted", "replied", "interviewing", "offer", "rejected"];
 
 /** Tag 1 — provenance. Ordered best-evidence first. */
 export const VALID_PLATFORMS = [
   "greenhouse", "lever", "ashby", "keka",       // the company's own ATS board
   "hackernews",                                  // the employer posted it itself
+  "li_post",                                     // a public LinkedIn hiring post
   "remotive", "arbeitnow", "remoteok", "weworkremotely", "instahyre", // aggregators
   "linkedin", "naukri", "firecrawl",             // search / sitemap / rendered page
   "extension",                                   // harvested from a logged-in page

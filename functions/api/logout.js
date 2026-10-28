@@ -3,7 +3,7 @@ export async function onRequest() {
     status: 302,
     headers: {
       Location: "/",
-      "Set-Cookie": "session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0",
+      "Set-Cookie": "session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0",
     },
   });
 }

@@ -2,9 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>Pilot — Dashboard</title>
+<!-- sw.js caches "/" for offline only when it sees this marker, so the login
+     page (also served at "/") is never mistaken for the app. -->
+<meta name="pilot-app" content="dashboard">
+<meta name="theme-color" content="#1d6b3f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -77,6 +84,12 @@
   .nav:hover{background:var(--panel3);color:var(--ink)}
   .nav.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
   .nav .ic{width:15px;text-align:center;flex:none;font-size:12.5px;opacity:.85}
+  .nav .ic i{font-style:normal}
+  .nav .ic svg{display:none}
+  /* Desktop shows plain "Loading…" exactly as before; the logo and spinner are
+     the phone app's launch screen (see the max-width:860px block). */
+  .boot-logo,.boot-spin{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .nav .badge{margin-left:auto;font-size:11px;font-weight:500;color:var(--faint);
     font-variant-numeric:tabular-nums}
   .nav.on .badge{color:var(--accent-ink);opacity:.75}
@@ -308,6 +321,44 @@
     z-index:80;max-width:88vw;box-shadow:var(--shadow2)}
   .toast.show{opacity:1;transform:translate(-50%,0)}
 
+  /* Offline notice — hidden unless the network is gone or data came from the
+     on-device copy, so the online web app is laid out exactly as before. */
+  .offbar{position:sticky;top:0;z-index:70;background:var(--amber);color:#fff;
+    font-size:13px;font-weight:500;padding:8px var(--s4);text-align:center}
+  .offbar[hidden]{display:none}
+
+  /* ---- add from screenshot ---- */
+  .xthumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .xthumbs:empty{display:none}
+  .xthumb{position:relative}
+  .xthumb img{width:64px;height:84px;object-fit:cover;object-position:top;border-radius:10px;border:1px solid var(--line);display:block}
+  .xthumb button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:none;
+    background:var(--ink);color:var(--bg);font-size:14px;line-height:1;cursor:pointer}
+  .xres{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;background:var(--panel2)}
+  .xres-hd{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .xres-role{font-size:13px;color:var(--mute);margin-top:2px}
+  .xres-c{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .xres-c span{font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px 9px}
+  .xres-c span.unsure,.xchk{border-color:var(--amber);color:var(--amber)}
+  .xchk{font-size:10.5px;font-weight:700;border:1px solid;border-radius:99px;padding:0 6px;margin-left:4px;vertical-align:middle}
+
+  /* ---- notification bell + feed ---- */
+  .bell{position:relative}
+  .bell .bdg{position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 4px;
+    border-radius:99px;background:var(--red);color:#fff;font-size:10px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;line-height:1}
+  .bell .bdg[hidden]{display:none}
+  .nt{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line2)}
+  .nt:last-child{border-bottom:none}
+  .nt-ic{font-size:16px;line-height:1.35;flex:none;width:20px;text-align:center}
+  .nt-t{font-size:13px;font-weight:560}
+  .nt.unread .nt-t{font-weight:700}
+  .nt.unread .nt-t::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:var(--accent);margin-left:6px;vertical-align:middle}
+  .nt-b{color:var(--mute);font-size:12.5px;white-space:pre-wrap;margin-top:2px}
+  .nt-time{font-size:11px;color:var(--faint);margin-top:3px}
+  .ntlist{max-height:55vh;overflow-y:auto}
+
   /* ---- draft modal ---- */
   .modalback{position:fixed;inset:0;background:rgba(10,14,12,.55);z-index:90;
     display:flex;align-items:flex-start;justify-content:center;padding:6vh var(--s4);
@@ -371,17 +422,214 @@
   .pill.warn{color:var(--amber)}
   .pill.bad{color:var(--red)}
 
+  /* Phone layout — app-style: compact top bar, bottom tab bar, tighter cards.
+     Everything is inside this query, so the desktop web app is untouched. */
   @media(max-width:860px){
+    body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
     .shell{grid-template-columns:1fr}
-    .side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
-    .brand{padding:var(--s4)}
-    nav{flex-direction:row;overflow-x:auto;padding:var(--s2);gap:var(--s1)}
-    .nav{width:auto;flex:none}
+
+    /* The sidebar becomes a fixed bottom tab bar; its name/profile text goes. */
+    .side{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;z-index:60;
+      border-right:none;border-top:1px solid var(--line);overflow:visible;
+      background:color-mix(in srgb, var(--panel) 94%, transparent);
+      backdrop-filter:saturate(180%) blur(10px);
+      padding-bottom:env(safe-area-inset-bottom)}
+    .brand,.sidefoot{display:none}
+    nav{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;padding:4px 2px}
+    .nav{flex-direction:column;justify-content:center;gap:3px;height:52px;padding:0 2px;
+      border-radius:var(--r1);font-size:10px;font-weight:500;text-align:center;
+      user-select:none;-webkit-user-select:none}
+    .nav span:nth-of-type(2){max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .nav .ic{width:auto;opacity:1;line-height:0;padding:3px 16px;border-radius:99px;
+      transition:background .15s}
+    .nav .ic .g{display:none}
+    .nav .ic svg{display:block;width:21px;height:21px}
+    .nav:hover{background:none}
+    .nav.on{background:none;color:var(--accent);font-weight:620}
+    .nav.on .ic{background:var(--accent-soft);color:var(--accent-ink)}
+    .nav.on .ic svg{stroke-width:2.2}
+
+    /* Launch screen until the first data load replaces it. */
+    .boot{min-height:calc(100vh - 160px);display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:var(--s4)}
+    .boot-logo{display:block;width:76px;height:76px;border-radius:20px;
+      box-shadow:0 8px 24px rgba(15,74,42,.28)}
+    .boot-spin{display:block;width:22px;height:22px;border-radius:50%;
+      border:2.5px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+    .boot .loading{padding:0}
     .nav .badge{display:none}
-    .sidefoot{display:none}
-    .content{padding:var(--s4)}
-    .top{padding:0 var(--s4);height:52px}
-    .phead h2{font-size:18px}
+
+    .top{padding:0 var(--s3);padding-top:env(safe-area-inset-top);height:auto;min-height:48px;gap:var(--s1)}
+    .top h1{font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .top .spacer{display:none}
+    .top .btn.sm{height:30px;padding:0 8px}
+
+    /* Leave room for the tab bar so the last card isn't hidden under it. */
+    .content{padding:var(--s3) var(--s3) calc(76px + env(safe-area-inset-bottom))}
+    /* The top bar already names the page; the big heading and blurb repeat it. */
+    .phead{display:none}
+    .stack{gap:var(--s3)}
+    .grid{gap:var(--s2)}
+    .g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+    .card{border-radius:var(--r2)}
+    .card-hd{padding:var(--s3) var(--s3);min-height:42px}
+    .card-bd,.card-bd.tight{padding:var(--s3)}
+    .tile{padding:var(--s3);min-height:0;border-radius:var(--r2)}
+    .tile .v{font-size:22px;margin-top:4px}
+    .tile .m{font-size:11px;margin-top:3px}
+
+    .toolbar{gap:6px}
+    /* Search gets its own full-width row; sort and Add share the next one. */
+    .search{min-width:0;height:38px;flex:1 1 100%}
+    .toolbar .sortsel{flex:1}
+    /* Pipeline filters: one swipeable row instead of three wrapped rows. */
+    .chips.scrollrow{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+      margin:0 calc(-1 * var(--s3));padding:0 var(--s3)}
+    .chips.scrollrow::-webkit-scrollbar{display:none}
+    .chips.scrollrow .chip{flex:none}
+    /* Explanations shrink to two lines; tapping one expands it (see the
+       listener at the end of the script). Status lines carry an id — untouched. */
+    p.hint:not([id]){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+      overflow:hidden;cursor:pointer}
+    p.hint:not([id]).open{display:block}
+    .seclabel{margin:var(--s4) 0 var(--s2)}
+
+    .co{padding:var(--s3);margin-bottom:var(--s2);border-radius:var(--r1)}
+    .co .nm{font-size:14px}
+    .co .acts{gap:6px;margin-top:var(--s2)}
+    /* Six stages as an even 3×2 grid of real tap targets, not a ragged wrap. */
+    .stagebar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;
+      margin-top:var(--s2);padding-top:var(--s2)}
+    .sb{height:32px;padding:0 4px;font-size:11.5px}
+
+    .callout{padding:var(--s2) var(--s3);font-size:12px;line-height:1.55}
+    th,td{padding:8px 10px}
+    .empty{padding:var(--s5) var(--s3)}
+    .modalback{padding:var(--s3)}
+    .modalhd{padding:var(--s3)}
+    .modalbd{padding:var(--s3)}
+    .toast{bottom:calc(72px + env(safe-area-inset-bottom))}
+  }
+
+  /* ---- phone-only pieces: hidden on desktop ---- */
+  .co-sum,.nav-more{display:none}
+  .sheetback{position:fixed;inset:0;z-index:95;background:rgba(10,14,12,0);transition:background .2s}
+  .sheetback.in{background:rgba(10,14,12,.45)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--panel);
+    border-radius:20px 20px 0 0;padding:6px 10px calc(14px + env(safe-area-inset-bottom));
+    box-shadow:0 -8px 30px rgba(0,0,0,.18);transform:translateY(100%);transition:transform .22s ease}
+  .sheetback.in .sheet{transform:none}
+  .sheet-grip{width:38px;height:4px;border-radius:99px;background:var(--line);margin:6px auto 10px}
+  .sheet-row{display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:0 12px;
+    background:none;border:none;border-radius:12px;font-size:15px;font-weight:540;color:var(--ink);
+    text-decoration:none;cursor:pointer;text-align:left}
+  .sheet-row:active{background:var(--panel3)}
+  .sheet-row.on{color:var(--accent);background:var(--accent-soft)}
+  .sheet-row.danger{color:var(--red)}
+  .sheet-ic{width:24px;display:flex;justify-content:center;font-size:18px;color:var(--mute)}
+  .sheet-row.on .sheet-ic{color:var(--accent)}
+  .sheet-ic svg{display:block}
+  .sheet-chev,.sheet-val{margin-left:auto;color:var(--faint);font-size:14px;font-weight:500}
+  .sheet-chev{font-size:20px}
+  .sheet-sep{height:1px;background:var(--line2);margin:6px 12px}
+
+  /* ================= phone redesign =================
+     Calmer, app-like: one-line lead rows that open inline, a five-tab bottom
+     bar with More, a title-and-bell top bar, a floating "+" and roomier type.
+     Later in the cascade than the block above, so these win on equal selectors. */
+  @media(max-width:860px){
+    body{font-size:15px;line-height:1.5}
+    .content{padding:var(--s4) 14px calc(100px + env(safe-area-inset-bottom))}
+    .stack{gap:14px}
+
+    /* top bar: just the title and the bell */
+    .top{min-height:56px;padding:env(safe-area-inset-top) 10px 0 16px;border-bottom:1px solid var(--line2)}
+    .top h1{font-size:19px;font-weight:700;letter-spacing:-.02em}
+    #theme,#signout{display:none}
+    .bell{width:42px;height:42px;padding:0;justify-content:center;border-radius:12px}
+
+    /* bottom bar: four tabs + More */
+    nav{grid-template-columns:repeat(5,minmax(0,1fr));padding:6px 4px}
+    .nav[data-k="events"],.nav[data-k="profile"],.nav[data-k="data"]{display:none}
+    .nav-more{display:flex}
+    .nav{height:56px;font-size:11px}
+
+    /* cards & tiles */
+    .card{border-radius:16px;box-shadow:none}
+    .card-hd{padding:14px 16px;min-height:48px}
+    .card-hd h3{font-size:14.5px}
+    .card-bd,.card-bd.tight{padding:16px}
+    .tile{padding:14px 16px;border-radius:16px;box-shadow:none}
+    .tile .k{font-size:12.5px}
+    .tile .v{font-size:26px;margin-top:6px}
+    .grid{gap:10px}
+    .btn{height:40px;font-size:13.5px;border-radius:10px}
+    .btn.sm{height:36px;font-size:13px}
+    input.f,select.f{height:44px;font-size:15px;border-radius:10px}
+    textarea.f{font-size:15px;border-radius:10px}
+    label.lb{font-size:12.5px}
+
+    /* pipeline tools */
+    .toolbar{gap:8px}
+    .search{height:46px;border-radius:12px;font-size:15px;padding:0 14px}
+    .toolbar .sortsel{height:40px;border-radius:10px;font-size:13.5px;flex:1}
+    .tabs{width:100%;border-radius:12px}
+    .tab{height:36px;font-size:13.5px;flex:1 0 auto;justify-content:center}
+    .chip{height:34px;font-size:13px;padding:0 14px}
+    .seclabel{margin:20px 2px 10px}
+    .seclabel h3{font-size:11.5px}
+
+    /* floating add button */
+    .fab-add{position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:55;
+      width:56px;height:56px;padding:0;border-radius:18px;justify-content:center;
+      box-shadow:0 8px 24px rgba(15,74,42,.35)}
+    .fab-add .fab-lbl{display:none}
+    .fab-add .fab-plus{font-size:28px;font-weight:400;line-height:1}
+
+    /* ---- lead row + inline drawer ---- */
+    .co{padding:0;margin-bottom:10px;border-radius:16px;box-shadow:none;overflow:hidden}
+    .co:hover{box-shadow:none}
+    .co-sum{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;padding:12px 14px;
+      background:none;border:none;text-align:left;cursor:pointer;color:inherit}
+    .co-sum:active{background:var(--panel2)}
+    .co-av{flex:none;width:42px;height:42px;border-radius:13px;display:flex;align-items:center;
+      justify-content:center;font-size:17px;font-weight:700;
+      background:var(--accent-soft);color:var(--accent-ink)}
+    .co[data-stage="contacted"] .co-av{background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue)}
+    .co[data-stage="replied"] .co-av{background:color-mix(in srgb,var(--violet) 14%,transparent);color:var(--violet)}
+    .co[data-stage="interviewing"] .co-av{background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber)}
+    .co[data-stage="offer"] .co-av{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+    .co[data-stage="rejected"] .co-av{background:var(--panel3);color:var(--faint)}
+    .co-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .co-nm{font-size:15.5px;font-weight:650;letter-spacing:-.01em;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .co-sub{font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .co-reach{display:flex;gap:3px;flex:none}
+    .co-reach i{font-style:normal;font-size:10px;font-weight:700;color:var(--mute);
+      background:var(--panel3);border-radius:6px;padding:2px 5px}
+    .co-g{flex:none;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;
+      justify-content:center;font-size:11.5px;font-weight:800;color:#fff;background:var(--faint)}
+    .co-g[data-g="A"]{background:var(--green)}
+    .co-g[data-g="B"]{background:var(--blue)}
+    .co-g[data-g="C"]{background:var(--amber)}
+    .co-chev{flex:none;font-size:22px;color:var(--faint);transition:transform .2s;line-height:1}
+    .co.open .co-chev{transform:rotate(90deg)}
+    .co-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease}
+    .co.open .co-body{grid-template-rows:1fr}
+    .co-inner{overflow:hidden;min-height:0;padding:0 14px}
+    .co.open .co-inner{padding:2px 14px 16px;border-top:1px solid var(--line2)}
+    .co .hd .nm,.co .hd .meta{display:none}       /* already in the row above */
+    .co .hd{margin-top:12px}
+    .co .note{font-size:13.5px;margin-top:10px}
+    .co .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+    .co .acts a.btn{grid-column:1/-1;justify-content:flex-start;height:46px;padding:0 14px;
+      font-size:14px;border-radius:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex}
+    .co .acts button.btn{justify-content:center;height:42px;border-radius:12px;
+      background:var(--panel2);border:1px solid var(--line2);font-size:13px}
+    .stagebar{gap:8px;margin-top:14px;padding-top:14px}
+    .sb{height:38px;border-radius:10px;font-size:12.5px}
+    .co textarea.f{min-height:72px!important;margin-top:14px!important}
   }
 </style>
 </head>
@@ -398,14 +646,18 @@
   </aside>
 
   <div class="main">
+    <div class="offbar" id="offbar" role="status" hidden></div>
     <div class="top">
       <h1 id="page-title">Overview</h1>
       <span class="spacer"></span>
+      <button class="btn sm ghost bell" id="bell" title="Notifications" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span class="bdg" id="bell-n" hidden></span></button>
       <button class="btn sm ghost" id="theme" title="Theme">◐ Auto</button>
-      <a class="btn sm ghost" href="/api/logout">Sign out</a>
+      <a class="btn sm ghost" id="signout" href="/api/logout">Sign out</a>
     </div>
     <div class="content" id="content">
-      <div class="loading">Loading…</div>
+      <div class="boot"><img class="boot-logo" src="/icons/icon-192.png" alt=""><span class="boot-spin"></span><div class="loading">Loading…</div></div>
     </div>
   </div>
 </div>
@@ -458,8 +710,16 @@ const DEFAULT_LI =
 "Hi, I am {name}, {role} ({years} yrs, {stack}) ({employer}). " +
 "Would you be open to a quick chat about roles at {company}?";
 
-const TABS = [["blr","Bangalore"],["pune","Pune"],["lko","Lucknow"],["noida","Noida / NCR"],["rem","Remote"]];
-const TAB_LABEL = Object.fromEntries(TABS);
+const TABS = [["blr","Bangalore"],["pune","Pune"],["lko","Lucknow"],["noida","Noida / NCR"],["rem","Remote"],["oth","Other"]];
+/* "Other" holds companies in any city typed by hand (c.city). Its rows show
+   that typed name wherever a city label appears. */
+const cityName = (c) => (c.tab === "oth" && c.city) ? c.city : (TAB_LABEL[c.tab] || c.tab);
+/* "All" is a pipeline-only pseudo-tab. TABS itself stays city-only because it
+   also drives the analytics charts, the add-company City select and the
+   documented import values — none of which have an "all" bucket. */
+const ALL_TAB = "all";
+const PIPELINE_TABS = [[ALL_TAB,"All"], ...TABS];
+const TAB_LABEL = { ...Object.fromEntries(TABS), [ALL_TAB]: "All cities" };
 const SECTIONS = {
   blr:  [["s1","Real HR inbox — email these properly"],
          ["s2","WhatsApp them"],
@@ -472,7 +732,10 @@ const SECTIONS = {
          ["l3","Email / LinkedIn only"]],
   noida:[["n1","Real HR inbox — email these properly"],
          ["n2","Phone / LinkedIn only"]],
-  rem:  [["r1","Remote-friendly — LinkedIn first"]]
+  rem:  [["r1","Remote-friendly — LinkedIn first"]],
+  oth:  [["o1","Real HR inbox — email these properly"],
+         ["o2","WhatsApp or a live opening"],
+         ["o3","Email / LinkedIn only"]]
 };
 const STAGES = [
   ["none","Not contacted"],["contacted","Contacted"],["replied","Replied"],
@@ -492,6 +755,7 @@ const PLATFORMS = [
   ["ashby",          "Ashby",      "ats"],
   ["keka",           "Keka",       "ats"],
   ["hackernews",     "HN hiring",  "direct"],
+  ["li_post",        "LinkedIn post", "direct"],
   ["remotive",       "Remotive",   "aggregator"],
   ["arbeitnow",      "Arbeitnow",  "aggregator"],
   ["remoteok",       "RemoteOK",   "aggregator"],
@@ -530,8 +794,39 @@ let TPLS = {
 };
 let TPL_MIGRATED = false;
 let VIEW = localStorage.getItem("jo:view") || "overview";
+/* A tapped notification opens /?view=<screen>; honour it once, then tidy the URL
+   so a reload goes back to the remembered view. */
+let SHARE_RETRY = false;   // the share reached the server, not sw.js — ask to share again
+{
+  const q = new URLSearchParams(location.search);
+  const v = q.get("view");
+  SHARE_RETRY = q.get("shared") === "retry";
+  if(v && ["overview","pipeline","analytics","message","events","profile","data","add"].includes(v)){
+    VIEW = v;
+    if(v !== "add") try{ localStorage.setItem("jo:view", v); }catch{}
+    history.replaceState(null, "", location.pathname);
+  }
+}
+
+/* Chrome's own install prompt, kept for an "Install Pilot" button. Installing
+   through it gives a real app (WebAPK) — the only kind Android lists in the
+   share sheet — where "Add to home screen" can leave a plain shortcut. */
+let INSTALL_PROMPT = null;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); INSTALL_PROMPT = e; });
+addEventListener("appinstalled", () => { INSTALL_PROMPT = null; toast("Pilot installed — it now shows in the Share menu"); });
+async function installPilot(){
+  if(!INSTALL_PROMPT){
+    toast("Use Chrome's menu ⋮ → Install app (or it is already installed)");
+    return;
+  }
+  INSTALL_PROMPT.prompt();
+  await INSTALL_PROMPT.userChoice.catch(() => null);
+  INSTALL_PROMPT = null;
+}
 let TAB = localStorage.getItem("jo:tab") || "blr";
-let SORT = localStorage.getItem("jo:sort") || "grade";
+/* jo:sort2, not jo:sort: "Newest added" became the default, and a key change is
+   what lets that reach phones that had saved the old default. */
+let SORT = localStorage.getItem("jo:sort2") || "added";
 let query = "";
 const active = new Set();
 
@@ -547,6 +842,7 @@ const FILTERS = [
 ];
 
 const SORTS = [
+  ["added", "Newest added"],
   ["grade", "Best leads first"],
   ["fresh", "Newest posting"],
   ["name",  "A–Z"],
@@ -554,7 +850,9 @@ const SORTS = [
 
 function sortCompanies(list){
   const copy = list.slice();
-  if(SORT === "grade"){
+  if(SORT === "added"){
+    copy.sort((a,b) => (b.created_at||0) - (a.created_at||0));
+  } else if(SORT === "grade"){
     // Ungraded rows (the hand-researched seed set) sort after graded ones
     // rather than being treated as zero-score leads.
     copy.sort((a,b) => (b.score||0) - (a.score||0) || a.n.localeCompare(b.n));
@@ -625,11 +923,23 @@ function copy(text, label){
 
 /* ----------------------------------------------------------------- api --- */
 async function api(path, options = {}){
-  const res = await fetch(path, {
-    credentials: "same-origin",
-    headers: { "content-type": "application/json" },
-    ...options,
-  });
+  let res;
+  try{
+    res = await fetch(path, {
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      ...options,
+    });
+  }catch(e){
+    // A bare "Failed to fetch" tells nobody anything. Offline, sw.js answers
+    // reads from the device copy, so a throw here is almost always a write.
+    showOffline();
+    throw new Error(navigator.onLine ? "Network error — try again" : "You're offline — this can't be saved until you reconnect");
+  }
+  // Set by sw.js only on an answer served from the device copy — a live server
+  // response never carries either header.
+  const savedAt = Number(res.headers.get("x-pilot-saved-at")) || 0;
+  if(savedAt || res.headers.get("x-pilot-offline")) showOffline(savedAt);
   if(res.status === 401){ location.reload(); throw new Error("unauthorized"); }
   if(!res.ok){
     const body = await res.json().catch(() => ({}));
@@ -676,6 +986,52 @@ const VIEWS = [
   ["profile",   "Profile",   "◈"],
   ["data",      "Data",      "⇅"],
 ];
+/* Line icons for the phone tab bar (Lucide shapes, ISC licence). The desktop
+   sidebar keeps the text glyphs above; CSS shows one or the other by width. */
+const NAV_SVG = {
+  overview:  '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  pipeline:  '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  analytics: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  message:   '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  events:    '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  profile:   '<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  data:      '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>',
+};
+const navSvg = (key) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_SVG[key] || ""}</svg>`;
+
+const MORE_VIEWS = ["events", "profile", "data"];
+
+/** Phone "More" sheet: the views that don't fit the bottom bar, plus theme and
+ *  sign-out, which leave the phone's top bar for just the title and the bell. */
+function openMoreSheet(){
+  const back = document.createElement("div");
+  back.className = "sheetback";
+  const sheet = document.createElement("div");
+  sheet.className = "sheet";
+  const themeLabel = (THEMES.find(t => t[0] === theme) || THEMES[0])[1];
+  sheet.innerHTML = `<div class="sheet-grip"></div>` +
+    VIEWS.filter(([k]) => MORE_VIEWS.includes(k)).map(([k, label]) =>
+      `<button class="sheet-row${k === VIEW ? " on" : ""}" data-k="${k}"><span class="sheet-ic">${navSvg(k)}</span>${esc(label)}<span class="sheet-chev">›</span></button>`).join("") +
+    `<div class="sheet-sep"></div>
+     <button class="sheet-row" id="sh-theme"><span class="sheet-ic">◐</span>Theme<span class="sheet-val">${esc(themeLabel.replace(/^\S+\s*/, ""))}</span></button>
+     ${matchMedia("(display-mode: standalone)").matches ? "" :
+       `<button class="sheet-row" id="sh-install"><span class="sheet-ic">⬇</span>Install Pilot app<span class="sheet-val">for Share</span></button>`}
+     <a class="sheet-row danger" href="/api/logout"><span class="sheet-ic">⎋</span>Sign out</a>`;
+  back.append(sheet);
+  document.body.append(back);
+  requestAnimationFrame(() => back.classList.add("in"));
+  const close = () => { back.classList.remove("in"); setTimeout(() => back.remove(), 200); };
+  back.addEventListener("click", (e) => { if(e.target === back) close(); });
+  sheet.querySelectorAll(".sheet-row[data-k]").forEach(b => b.addEventListener("click", () => {
+    VIEW = b.dataset.k; localStorage.setItem("jo:view", VIEW); close(); render();
+  }));
+  sheet.querySelector("#sh-install")?.addEventListener("click", () => { close(); installPilot(); });
+  sheet.querySelector("#sh-theme").addEventListener("click", () => {
+    $("theme").click();
+    const lbl = (THEMES.find(t => t[0] === theme) || THEMES[0])[1];
+    sheet.querySelector("#sh-theme .sheet-val").textContent = lbl.replace(/^\S+\s*/, "");
+  });
+}
 
 function renderNav(){
   const host = $("nav");
@@ -683,7 +1039,8 @@ function renderNav(){
   for(const [key,label,icon] of VIEWS){
     const b = document.createElement("button");
     b.className = "nav"+(key === VIEW ? " on" : "");
-    b.innerHTML = `<span class="ic">${icon}</span><span>${label}</span>`;
+    b.dataset.k = key;
+    b.innerHTML = `<span class="ic"><i class="g">${icon}</i>${navSvg(key)}</span><span>${label}</span>`;
     if(key === "pipeline"){
       const n = document.createElement("span");
       n.className = "badge";
@@ -693,6 +1050,13 @@ function renderNav(){
     b.addEventListener("click", () => { VIEW = key; localStorage.setItem("jo:view", key); render(); });
     host.append(b);
   }
+  /* Phone only (hidden on desktop by CSS): the bottom bar shows four tabs plus
+     More, which opens a sheet with the rest — seven icons in a row was a wall. */
+  const more = document.createElement("button");
+  more.className = "nav nav-more" + (MORE_VIEWS.includes(VIEW) ? " on" : "");
+  more.innerHTML = `<span class="ic"><i class="g">⋯</i><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></span><span>More</span>`;
+  more.addEventListener("click", openMoreSheet);
+  host.append(more);
 
   /* A blank identity is a real state — the profile endpoint can be down, and a
      freshly created profile has empty fields — so each line is dropped rather
@@ -944,7 +1308,67 @@ function viewAnalytics(host){
     </table></div>`;
   s.append(tb.card);
 
+  s.append(applyStatsPanel());
+
   host.append(s);
+}
+
+/* Auto-apply results, from the apply_log table. A reply is any reply_at; the
+   follow-up row counts replies that came in after the follow-up went out, which
+   is the only way to tell whether the follow-up is pulling its weight. */
+function applyStatsPanel(){
+  const p = panel("Auto-apply results", "emails sent by auto-apply");
+  p.body.innerHTML = `<div class="loading">Loading…</div>`;
+  (async () => {
+    let rows = [];
+    try{ rows = await api("/api/apply-log"); }catch(e){
+      p.body.innerHTML = `<div class="empty">Couldn't load the send log: ${esc(e.message)}</div>`; return;
+    }
+    if(!rows.length){
+      p.body.innerHTML = `<div class="empty"><b>Nothing sent yet</b>Reply rates appear here once auto-apply has emailed a few companies.</div>`;
+      return;
+    }
+    const replied = rows.filter(r => r.replied_at);
+    const bounced = rows.filter(r => r.bounced_at);
+    const fu = rows.filter(r => r.followup_at);
+    const fuWin = fu.filter(r => r.replied_at && r.replied_at > r.followup_at);
+    const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
+    const hours = replied.map(r => (r.replied_at - r.sent_at) / 3600000).sort((a, b) => a - b);
+    const median = hours.length ? hours[Math.floor(hours.length / 2)] : null;
+    const group = (key, label) => {
+      const m = new Map();
+      for(const r of rows){
+        const k = label(r[key]) || "—";
+        const g = m.get(k) || { sent: 0, rep: 0 };
+        g.sent++; if(r.replied_at) g.rep++;
+        m.set(k, g);
+      }
+      return [...m.entries()].sort((a, b) => b[1].sent - a[1].sent);
+    };
+    const table = (title, entries) => `
+      <div class="seclabel"><h3>${esc(title)}</h3><span class="ln"></span></div>
+      <div class="scrollx"><table><thead><tr><th></th><th class="num">Sent</th><th class="num">Replied</th><th class="num">Rate</th></tr></thead><tbody>
+      ${entries.map(([k, g]) => `<tr><td class="strong">${esc(k)}</td><td class="num">${g.sent}</td>
+        <td class="num">${g.rep}</td><td class="num">${pct(g.rep, g.sent)}</td></tr>`).join("")}</tbody></table></div>`;
+    const tiles = document.createElement("div");
+    tiles.className = "grid g4 mb4";
+    tiles.append(
+      tile("Emails sent", rows.length, `${fu.length} follow-ups`),
+      tile("Reply rate", pct(replied.length, rows.length), `${replied.length} replied`),
+      tile("Follow-up wins", fuWin.length, fu.length ? `${pct(fuWin.length, fu.length)} of follow-ups` : "none sent yet"),
+      tile("Bounced", bounced.length, median != null ? `median reply ${median < 48 ? Math.round(median) + "h" : Math.round(median / 24) + "d"}` : "no replies yet"),
+    );
+    p.body.textContent = "";
+    p.body.append(tiles);
+    const more = document.createElement("div");
+    more.innerHTML =
+      table("By source", group("platform", v => PLATFORM_LABEL[v] || v)) +
+      table("By city", group("tab", v => TAB_LABEL[v] || v)) +
+      table("By grade", group("grade", v => v ? "Grade " + v : "")) +
+      table("By subject line", group("subject_tpl", v => (v || "").slice(0, 70)).slice(0, 6));
+    p.body.append(more);
+  })();
+  return p.card;
 }
 
 function sourceLabel(s){
@@ -961,8 +1385,10 @@ function passes(c){
   return true;
 }
 
+const OPEN_CO = new Set();   // lead cards whose phone drawer is open
+
 function viewPipeline(host){
-  const inTab = COMPANIES.filter(c => c.tab === TAB);
+  const inTab = COMPANIES.filter(c => TAB === ALL_TAB || c.tab === TAB);
   const done = inTab.filter(c => c.stage !== "none").length;
 
   host.append(pageHead("Pipeline",
@@ -979,8 +1405,10 @@ function viewPipeline(host){
       SORTS.map(([k,l]) => `<option value="${k}"${k === SORT ? " selected" : ""}>${esc(l)}</option>`).join("")
     }</select>`;
   const addBtn = document.createElement("button");
-  addBtn.className = "btn primary";
-  addBtn.textContent = "+ Add company";
+  addBtn.className = "btn primary fab-add";
+  addBtn.setAttribute("aria-label", "Add company");
+  // On a phone this becomes a round floating "+" (see .fab-add); desktop keeps the label.
+  addBtn.innerHTML = `<span class="fab-plus">+</span><span class="fab-lbl">&nbsp;Add company</span>`;
   addBtn.addEventListener("click", () => { VIEW = "add"; render(); });
   bar.append(addBtn);
   s.append(bar);
@@ -988,8 +1416,8 @@ function viewPipeline(host){
   // city tabs
   const tabHost = document.createElement("div");
   tabHost.className = "tabs";
-  for(const [key,label] of TABS){
-    const n = COMPANIES.filter(c => c.tab === key).length;
+  for(const [key,label] of PIPELINE_TABS){
+    const n = key === ALL_TAB ? COMPANIES.length : COMPANIES.filter(c => c.tab === key).length;
     const b = document.createElement("button");
     b.className = "tab"+(key === TAB ? " on" : "");
     b.innerHTML = `${esc(label)}<span class="n">${n}</span>`;
@@ -1000,7 +1428,7 @@ function viewPipeline(host){
 
   // filter chips
   const chipHost = document.createElement("div");
-  chipHost.className = "chips";
+  chipHost.className = "chips scrollrow";
   for(const [k,label] of FILTERS){
     const b = document.createElement("button");
     b.className = "chip"+(active.has(k) ? " on" : "");
@@ -1014,8 +1442,16 @@ function viewPipeline(host){
   // sections
   const listHost = document.createElement("div");
   let shown = 0;
-  for(const [sectionKey,title] of SECTIONS[TAB]){
-    const list = sortCompanies(inTab.filter(c => c.section === sectionKey).filter(passes));
+  /* Section keys differ per city (s1/p1/l1/n1/r1), so "All" can't share one
+     section list — it renders every city's sections in order, city-labelled. */
+  /* "Newest added" is one flat list: grouping by contact tier would put a lead
+     added a minute ago under every older tier-1 lead. */
+  const groups = SORT === "added" ? [["*", "*", "Newest added first"]]
+    : TAB === ALL_TAB
+    ? TABS.flatMap(([city,label]) => SECTIONS[city].map(([key,title]) => [city, key, label+" · "+title]))
+    : SECTIONS[TAB].map(([key,title]) => [TAB, key, title]);
+  for(const [city,sectionKey,title] of groups){
+    const list = sortCompanies(inTab.filter(c => city === "*" || (c.tab === city && c.section === sectionKey)).filter(passes));
     if(!list.length) continue;
     shown += list.length;
     const h = document.createElement("div");
@@ -1052,7 +1488,7 @@ function viewPipeline(host){
   if(sel){
     sel.addEventListener("change", () => {
       SORT = sel.value;
-      localStorage.setItem("jo:sort", SORT);
+      localStorage.setItem("jo:sort2", SORT);
       render();
     });
   }
@@ -1085,8 +1521,42 @@ function platformTag(c){
 
 function companyCard(c){
   const el = document.createElement("div");
-  el.className = "co";
+  el.className = "co" + (OPEN_CO.has(c.id) ? " open" : "");
   el.dataset.stage = c.stage;
+
+  /* Phone layout: a one-line summary (avatar, name, city · stage) that opens an
+     inline drawer with everything below. On desktop .co-sum is hidden and the
+     drawer wrappers are plain blocks, so the card renders exactly as before.
+     Open state lives in OPEN_CO so a re-render (setStage re-renders the whole
+     list) keeps the drawer you were working in open. */
+  const sum = document.createElement("button");
+  sum.type = "button";
+  sum.className = "co-sum";
+  sum.setAttribute("aria-expanded", String(OPEN_CO.has(c.id)));
+  const reach = [(c.hr || []).length || (c.em || []).length ? "✉" : "",
+                 (c.wa || []).length ? "WA" : "", c.li ? "in" : ""].filter(Boolean);
+  sum.innerHTML =
+    `<span class="co-av">${esc((c.n || "?").trim().charAt(0).toUpperCase())}</span>` +
+    `<span class="co-main"><span class="co-nm">${esc(c.n)}</span>` +
+    `<span class="co-sub">${esc(cityName(c))} · ${esc(STAGE_LABEL[c.stage] || "")}` +
+    `${SORT === "added" && c.created_at ? " · added " + esc(ago(c.created_at)) : ""}` +
+    `${needsFollowUp(c) ? " · ↻ follow up" : ""}</span></span>` +
+    (reach.length ? `<span class="co-reach">${reach.map(r => `<i>${esc(r)}</i>`).join("")}</span>` : "") +
+    (c.grade ? `<span class="co-g" data-g="${esc(c.grade)}">${esc(c.grade)}</span>` : "") +
+    `<span class="co-chev" aria-hidden="true">›</span>`;
+  sum.addEventListener("click", () => {
+    const open = !el.classList.contains("open");
+    el.classList.toggle("open", open);
+    open ? OPEN_CO.add(c.id) : OPEN_CO.delete(c.id);
+    sum.setAttribute("aria-expanded", String(open));
+  });
+  el.append(sum);
+  const drawer = document.createElement("div");
+  drawer.className = "co-body";
+  const inner = document.createElement("div");
+  inner.className = "co-inner";
+  drawer.append(inner);
+  el.append(drawer);
 
   // Each channel gets its own text — that is the whole point of having three
   // templates. WhatsApp links must not carry an email-length message.
@@ -1103,13 +1573,13 @@ function companyCard(c){
     (fu ? `<span class="fu">↻ follow up</span>` : "") +
     (c.stage !== "none"
       ? `<span class="meta">${esc(STAGE_LABEL[c.stage])} · ${esc(ago(c.stage_at))}</span>` : "");
-  el.append(head);
+  inner.append(head);
 
   if(c.note){
     const n = document.createElement("p");
     n.className = "note";
     n.textContent = c.note;
-    el.append(n);
+    inner.append(n);
   }
 
   const acts = document.createElement("div");
@@ -1180,7 +1650,7 @@ function companyCard(c){
     ai.addEventListener("click", () => draftMessage(c, aiChannel));
     acts.append(ai);
   }
-  el.append(acts);
+  inner.append(acts);
 
   const sbar = document.createElement("div");
   sbar.className = "stagebar";
@@ -1192,7 +1662,7 @@ function companyCard(c){
     b.addEventListener("click", () => setStage(c, key));
     sbar.append(b);
   }
-  el.append(sbar);
+  inner.append(sbar);
 
   const ta = document.createElement("textarea");
   ta.className = "f";
@@ -1208,7 +1678,7 @@ function companyCard(c){
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => saveProgress(c, { silent:true }), 700);
   });
-  el.append(ta);
+  inner.append(ta);
 
   return el;
 }
@@ -1238,6 +1708,182 @@ async function saveProgress(c, { silent } = {}){
 }
 
 /* ----------------------------------------------------------- add form --- */
+/* --------------------------------------------- add from screenshot/post --- */
+/* Screenshots, pasted text or a link go to /api/ai/extract (Gemini reads them);
+   the openings it finds come back for a one-tap save — never saved unseen. The
+   same path serves Android's share sheet: sw.js catches the shared files at
+   /share-target, parks them in the "pilot-share" cache and opens /?shared=1. */
+let SHARED_PENDING = null;           // { files: [Blob], text, url } from the share sheet
+let X_IMAGES = [];                   // shrunk screenshots waiting to be read
+
+function blobToB64(blob){
+  return new Promise((ok, bad) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(",")[1] || "");
+    r.onerror = () => bad(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/** Accuracy first: emails and phone numbers are small print, so screenshots are
+ *  only shrunk when wider than 1800px (a phone screenshot rarely is) and are
+ *  re-encoded at high JPEG quality. A tall capture is kept up to 5000px. */
+async function shrinkImage(file){
+  let bmp = null;
+  try{ bmp = await createImageBitmap(file); }catch{}
+  if(!bmp) return { mime: file.type || "image/jpeg", data: await blobToB64(file), url: URL.createObjectURL(file) };
+  const scale = Math.min(1, 1800 / bmp.width, 5000 / bmp.height);
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * scale);
+  c.height = Math.round(bmp.height * scale);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.92));
+  return { mime: "image/jpeg", data: await blobToB64(blob), url: URL.createObjectURL(blob) };
+}
+
+function extractCard(){
+  X_IMAGES = [];
+  const p = panel("Add from a screenshot or post", "AI reads it for you");
+  p.body.innerHTML = `
+    <p class="hint mb3" id="x-help">Screenshot a job post (LinkedIn, WhatsApp, a careers page) or paste its text or link.
+      The company, role, city, emails and WhatsApp are filled in for you to check before saving.
+      On your phone you can also share a photo or post straight to Pilot.</p>
+    <input type="file" id="x-files" accept="image/*" multiple hidden>
+    <div class="row"><button class="btn" id="x-pick">📷 Add screenshots</button><span class="hint" id="x-count"></span></div>
+    <div class="xthumbs" id="x-thumbs"></div>
+    <textarea class="f mt3" id="x-text" rows="3" style="min-height:80px"
+      placeholder="…or paste the post text, or a link (LinkedIn post, job page)"></textarea>
+    <div class="row mt3"><button class="btn primary" id="x-go">✨ Read with AI</button><span class="hint" id="x-status"></span></div>
+    <div id="x-results"></div>`;
+
+  const paintThumbs = () => {
+    $("x-thumbs").innerHTML = X_IMAGES.map((im, i) =>
+      `<span class="xthumb"><img src="${im.url}" alt=""><button type="button" data-i="${i}" aria-label="Remove">×</button></span>`).join("");
+    $("x-count").textContent = X_IMAGES.length ? `${X_IMAGES.length} screenshot${X_IMAGES.length > 1 ? "s" : ""}` : "";
+    $("x-thumbs").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+      X_IMAGES.splice(Number(b.dataset.i), 1); paintThumbs();
+    }));
+  };
+  setTimeout(() => {
+    $("x-pick").addEventListener("click", () => $("x-files").click());
+    $("x-files").addEventListener("change", async (e) => {
+      const files = [...e.target.files].slice(0, 6 - X_IMAGES.length);
+      $("x-status").textContent = "Preparing…";
+      for(const f of files) X_IMAGES.push(await shrinkImage(f));
+      e.target.value = "";
+      $("x-status").textContent = "";
+      paintThumbs();
+    });
+    $("x-go").addEventListener("click", runExtract);
+  });
+  p.card.dataset.paint = "1";
+  extractCard.paintThumbs = paintThumbs;
+  return p.card;
+}
+
+async function loadIntoExtract(shared){
+  for(const f of (shared.files || []).slice(0, 6)) X_IMAGES.push(await shrinkImage(f));
+  extractCard.paintThumbs && extractCard.paintThumbs();
+  const t = [shared.title, shared.text, shared.url].filter(Boolean).join("\n");
+  if($("x-text")) $("x-text").value = t;
+  if(X_IMAGES.length || t) runExtract();
+}
+
+async function runExtract(){
+  const text = ($("x-text").value || "").trim();
+  if(!X_IMAGES.length && !text){ toast("Add a screenshot or paste some text first"); return; }
+  const go = $("x-go");
+  go.disabled = true;
+  $("x-status").textContent = "Reading… this takes 5–20 seconds";
+  $("x-results").innerHTML = "";
+  try{
+    const r = await api("/api/ai/extract", { method: "POST", body: JSON.stringify({
+      images: X_IMAGES.map(({ mime, data }) => ({ mime, data })), text }) });
+    showExtracted(r.items || [], r.dropped || 0);
+    $("x-status").textContent = "";
+  }catch(e){
+    $("x-status").textContent = "Couldn't read it: " + e.message;
+  }finally{ go.disabled = false; }
+}
+
+function extractedNote(it){
+  return [it.role, it.experience, it.location, it.note, "added from a screenshot/post"].filter(Boolean).join(" · ");
+}
+
+function fillAddForm(it){
+  const set = (id, v) => { const el = $(id); if(el) el.value = v || ""; };
+  set("f-n", it.company);
+  if(it.tab){
+    set("f-tab", it.tab);
+    $("f-city-wrap") && ($("f-city-wrap").hidden = it.tab !== "oth");
+    if(it.tab === "oth") set("f-city", it.city);
+  }
+  set("f-hr", (it.hr || []).join(", "));
+  set("f-em", (it.em || []).join(", "));
+  set("f-wa", (it.wa || []).join(", "));
+  set("f-li", it.li);
+  set("f-ju", it.job_url);
+  set("f-jt", it.role);
+  set("f-note", extractedNote(it));
+  $("add-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  $("f-n")?.focus({ preventScroll: true });
+}
+
+async function addExtracted(it){
+  const tab = it.tab || ($("f-tab") && $("f-tab").value) || "rem";
+  await api("/api/companies", { method: "POST", body: JSON.stringify({
+    name: it.company || ("Hiring post — " + (it.role || "unknown role")),
+    tab, city: it.tab === "oth" ? (it.city || "") : (tab === "oth" ? ($("f-city") && $("f-city").value.trim()) || "" : ""),
+    hr: it.hr || [], em: it.em || [], wa: it.wa || [], li: it.li || "",
+    job_url: it.job_url || "", job_title: it.role || "", note: extractedNote(it), source: "manual",
+  }) });
+}
+
+function showExtracted(items, dropped = 0){
+  const host = $("x-results");
+  if(!items.length){
+    host.innerHTML = `<div class="callout warn mt3"><b>No job opening found.</b> Try a clearer screenshot, or paste the post text.</div>`;
+    return;
+  }
+  const city = (t, it) => (t === "oth" && it && it.city) ? it.city : (TAB_LABEL[t] || "City not shown — uses the form's city");
+  // Fields the model flagged as blurry or cut off get an amber "check" mark.
+  const unsure = (it, f) => (it.uncertain || []).includes(f) ? ` <span class="xchk">check</span>` : "";
+  host.innerHTML = `<div class="seclabel mt4"><h3>Found ${items.length}</h3><span class="ln"></span></div>` +
+    items.map((it, i) => `
+      <div class="xres">
+        <div class="xres-hd"><b>${esc(it.company || "Company not named")}${unsure(it, "company")}</b>
+          <span class="hint">${esc(city(it.tab, it))}${unsure(it, "city")}</span></div>
+        <div class="xres-role">${esc(it.role || "")}${unsure(it, "role")}${it.experience ? ` · ${esc(it.experience)}${unsure(it, "experience")}` : ""}</div>
+        <div class="xres-c">${[...(it.hr || []).map(e => ["✉ " + e, "hr_emails"]), ...(it.em || []).map(e => ["✉ " + e, "other_emails"]),
+          ...(it.wa || []).map(w => ["WA " + pretty(w), "phones"]), it.job_url ? ["↗ link", "job_url"] : null].filter(Boolean)
+          .map(([x, f]) => `<span${(it.uncertain || []).includes(f) ? ' class="unsure"' : ""}>${esc(x)}</span>`).join("")
+          || `<span class="hint">No email or number in it</span>`}</div>
+        ${it.note ? `<div class="hint mt2" id="x-note-${i}">${esc(it.note)}</div>` : ""}
+        <div class="row mt3"><button class="btn sm primary" data-add="${i}">Add</button>
+          <button class="btn sm" data-fill="${i}">Edit first</button></div>
+      </div>`).join("") +
+    (items.length > 1 ? `<div class="row mt3"><button class="btn primary" id="x-all">Add all ${items.length}</button></div>` : "") +
+    (dropped ? `<p class="hint mt3" id="x-dropped">${dropped} email/number left out — the AI produced it but it isn't
+      visibly in the screenshot, so it can't be trusted. Add it by hand if you can read it.</p>` : "");
+
+  host.querySelectorAll("[data-fill]").forEach(b => b.addEventListener("click", () => fillAddForm(items[Number(b.dataset.fill)])));
+  host.querySelectorAll("[data-add]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try{ await addExtracted(items[Number(b.dataset.add)]); b.textContent = "Added ✓"; toast("Added"); await loadAll(); }
+    catch(e){ b.disabled = false; toast("Couldn't add: " + e.message); }
+  }));
+  $("x-all")?.addEventListener("click", async () => {
+    const btn = $("x-all");
+    btn.disabled = true;
+    let n = 0;
+    for(const it of items){ try{ await addExtracted(it); n++; }catch{} }
+    host.querySelectorAll("[data-add]").forEach(b => { b.disabled = true; b.textContent = "Added ✓"; });
+    toast(`Added ${n} of ${items.length}`);
+    await loadAll();
+  });
+  if(items.length === 1) fillAddForm(items[0]);
+}
+
 function viewAdd(host){
   host.append(pageHead("Add a company",
     "Contact tier is picked for you: an HR inbox lands in tier 1, WhatsApp or a live opening in tier 2, anything else in the last tier."));
@@ -1250,13 +1896,17 @@ function viewAdd(host){
   back.addEventListener("click", () => { VIEW = "pipeline"; render(); });
   s.append(back);
 
+  s.append(extractCard());
+
   const p = panel("Company details");
+  p.card.id = "add-form";
   p.body.innerHTML = `
     <div class="grid g2">
       <div class="field"><label class="lb">Company name *</label><input class="f" id="f-n" placeholder="Zethic Technologies"></div>
       <div class="field"><label class="lb">City</label><select class="f" id="f-tab">
-        ${TABS.map(([k,l]) => `<option value="${k}"${k === TAB ? " selected" : ""}>${esc(l)}</option>`).join("")}
+        ${TABS.map(([k,l]) => `<option value="${k}"${k === TAB ? " selected" : ""}>${esc(k === "oth" ? "Other — type the city" : l)}</option>`).join("")}
       </select></div>
+      <div class="field" id="f-city-wrap" hidden><label class="lb">City name *</label><input class="f" id="f-city" placeholder="Hyderabad"></div>
       <div class="field"><label class="lb">HR email(s) — comma separated</label><input class="f" id="f-hr" placeholder="careers@company.com"></div>
       <div class="field"><label class="lb">General email(s)</label><input class="f" id="f-em" placeholder="hello@company.com"></div>
       <div class="field"><label class="lb">WhatsApp — digits with country code</label><input class="f" id="f-wa" placeholder="919611738802"></div>
@@ -1270,15 +1920,32 @@ function viewAdd(host){
   s.append(p.card);
   host.append(s);
 
+  if(SHARE_RETRY){
+    SHARE_RETRY = false;
+    toast("Pilot was just starting up — please share that screenshot again");
+  }
+  // Something shared to Pilot from another app: read it straight away.
+  if(SHARED_PENDING){
+    const shared = SHARED_PENDING;
+    SHARED_PENDING = null;
+    loadIntoExtract(shared);
+  }
+
+  const syncCity = () => { $("f-city-wrap").hidden = $("f-tab").value !== "oth"; };
+  $("f-tab").addEventListener("change", () => { syncCity(); if(!$("f-city-wrap").hidden) $("f-city").focus(); });
+  syncCity();
+
   $("f-save").addEventListener("click", async () => {
     const name = $("f-n").value.trim();
     if(!name){ toast("Company name is required"); $("f-n").focus(); return; }
+    const city = $("f-tab").value === "oth" ? $("f-city").value.trim() : "";
+    if($("f-tab").value === "oth" && !city){ toast("Type the city name"); $("f-city").focus(); return; }
     const split = (id) => $(id).value.split(",").map(v => v.trim()).filter(Boolean);
     try{
       await api("/api/companies", {
         method:"POST",
         body: JSON.stringify({
-          name, tab: $("f-tab").value,
+          name, tab: $("f-tab").value, city,
           hr: split("f-hr"), em: split("f-em"),
           wa: split("f-wa").map(w => w.replace(/\D/g,"")).filter(Boolean),
           li: $("f-li").value.trim(),
@@ -1289,8 +1956,10 @@ function viewAdd(host){
         }),
       });
       toast(name+" added");
-      TAB = $("f-tab").value;
-      localStorage.setItem("jo:tab", TAB);
+      if(TAB !== ALL_TAB){
+        TAB = $("f-tab").value;
+        localStorage.setItem("jo:tab", TAB);
+      }
       await loadAll();
       VIEW = "pipeline";
       render();
@@ -1549,11 +2218,155 @@ function viewEvents(host){
 }
 
 /* --------------------------------------------------------------- data --- */
+/* ------------------------------------------------------- auto-apply --- */
+/* Settings for auto_apply.py, the sender that runs on the PC after each scrape.
+   Stored as one JSON string under the generic per-profile settings key
+   `auto_apply`; the sender reports back under `auto_apply_status`. No schema
+   change: both ride the existing `settings` table. Keep AUTO_DEFAULTS in step
+   with DEFAULTS in auto_apply.py. */
+const AUTO_DEFAULTS = {
+  enabled: false,
+  test_mode: true,          // everything goes to your own inbox until you switch this off
+  grades: "AB",
+  daily_limit: 30,
+  followup_enabled: true,
+  followup_days: 3,
+  window_start: 10,
+  window_end: 16,
+  days: [0, 1, 2, 3, 4],    // Mon=0 … Sun=6, same numbering as Python's weekday()
+  exclude_companies: [],
+  subject: "Application: {job} — {name}",
+  /* Short on purpose: HR reads these on a phone. {proof} and {notice} lines are
+     dropped by the sender when empty, so a blank field leaves no debris. */
+  body: "Hi {company} team,\n\nI'm {name}, a {role} with {years} years of experience in {stack}. " +
+    "I'd like to apply for {job} at {company}.\n\n{proof}\n\nMy resume is attached.\nNotice period: {notice}.\n\nThanks for your time,",
+  proof: "",
+  followup_body: "Hi,\n\nFollowing up on my application for {job} at {company}, sent on {sent_date}. " +
+    "I'd be glad to share anything else that helps — portfolio, references or a quick call.\n\nThanks,\n{name}",
+};
+
+function autoApplyCard(){
+  const p = panel("Auto-apply", "email · runs after each scrape");
+  p.body.innerHTML = `<div class="loading">Loading…</div>`;
+  (async () => {
+    let cfg = { ...AUTO_DEFAULTS }, status = null;
+    try{
+      const [a, st] = await Promise.all([
+        api("/api/settings/auto_apply"), api("/api/settings/auto_apply_status").catch(() => null)]);
+      if(a && a.value) cfg = { ...AUTO_DEFAULTS, ...JSON.parse(a.value) };
+      if(st && st.value) status = JSON.parse(st.value);
+    }catch(e){ /* fall back to defaults — the form still renders */ }
+    paintAutoApply(p.body, cfg, status);
+  })();
+  return p.card;
+}
+
+function paintAutoApply(host, cfg, status){
+  const cur = ME.company ? `<b>${esc(ME.company)}</b> (your current company, from Profile) is always skipped.` :
+    `Set your current company in Profile — it is then always skipped.`;
+  const recent = (status && Array.isArray(status.recent)) ? status.recent.slice(0, 12) : [];
+  host.innerHTML = `
+    <div class="callout ${cfg.enabled ? (cfg.test_mode ? "info" : "") : "warn"} mb4">
+      <b>${cfg.enabled ? (cfg.test_mode ? "On — test mode" : "On — sending to companies") : "Off"}.</b>
+      Grade ${esc(cfg.grades.split("").join("/"))} leads with a real HR email get the email below and your resume from Gmail,
+      then move to <b>Contacted</b>. Replies move them to <b>Replied</b>.
+      ${cfg.test_mode ? "Test mode sends every email to your own inbox instead — check them, then switch it off." : ""}
+    </div>
+    <div class="row mb3">
+      <label class="row tight"><input type="checkbox" id="aa-on" ${cfg.enabled ? "checked" : ""}> Auto-apply on</label>
+      <label class="row tight"><input type="checkbox" id="aa-test" ${cfg.test_mode ? "checked" : ""}> Test mode (send to me only)</label>
+    </div>
+    <div class="grid g3 mb3">
+      <div class="field"><label class="lb" for="aa-grades">Apply to grades</label>
+        <select class="f" id="aa-grades">
+          <option value="A"${cfg.grades === "A" ? " selected" : ""}>A only</option>
+          <option value="AB"${cfg.grades === "AB" ? " selected" : ""}>A and B</option>
+        </select></div>
+      <div class="field"><label class="lb" for="aa-limit">Emails per day (max 50)</label>
+        <input class="f" id="aa-limit" type="number" min="1" max="50" value="${Number(cfg.daily_limit) || 30}"></div>
+      <div class="field"><label class="lb" for="aa-fudays">Follow-up after (days)</label>
+        <div class="row tight"><input type="checkbox" id="aa-fu" ${cfg.followup_enabled ? "checked" : ""} aria-label="Follow-up on">
+        <input class="f w-num" id="aa-fudays" type="number" min="1" max="30" value="${Number(cfg.followup_days) || 3}"></div></div>
+      <div class="field"><label class="lb" for="aa-ws">Send between (hours, 24h)</label>
+        <div class="row tight"><input class="f w-num" id="aa-ws" type="number" min="0" max="23" value="${Number(cfg.window_start)}">
+        <span class="hint">to</span><input class="f w-num" id="aa-we" type="number" min="1" max="24" value="${Number(cfg.window_end)}"></div></div>
+      <div class="field"><label class="lb">Send on</label>
+        <div class="row tight" id="aa-days">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d, i) =>
+          `<label class="row tight"><input type="checkbox" value="${i}" ${(cfg.days || [0,1,2,3,4]).includes(i) ? "checked" : ""}> ${d}</label>`).join(" ")}</div></div>
+    </div>
+    <div class="field mb3"><label class="lb" for="aa-ex">Never apply to — previous companies, one per line</label>
+      <textarea class="f" id="aa-ex" rows="3" style="min-height:80px" placeholder="Old Company Pvt Ltd">${esc((cfg.exclude_companies || []).join("\n"))}</textarea>
+      <p class="hint mt2" id="aa-cur">${cur} Matched on company name and on the HR email's domain.</p></div>
+    <div class="field mb3"><label class="lb" for="aa-subj">Subject</label>
+      <input class="f" id="aa-subj" value="${esc(cfg.subject)}"></div>
+    <div class="field mb3"><label class="lb" for="aa-body">Email</label>
+      <textarea class="f" id="aa-body" rows="9">${esc(cfg.body)}</textarea>
+      <p class="hint mt2" id="aa-words"></p></div>
+    <div class="field mb3"><label class="lb" for="aa-proof">Proof points — 2 or 3 lines, filled into {proof}</label>
+      <textarea class="f" id="aa-proof" rows="3" style="min-height:80px" placeholder="• Built a React + Node dashboard used by 200+ sellers daily&#10;• Cut API response time 40% with Redis caching">${esc(cfg.proof)}</textarea></div>
+    <div class="field mb3"><label class="lb" for="aa-fubody">Follow-up message</label>
+      <textarea class="f" id="aa-fubody" rows="5">${esc(cfg.followup_body)}</textarea>
+      <p class="hint mt2" id="aa-tok">Tokens: <code>{job}</code> <code>{company}</code> <code>{name}</code> <code>{role}</code>
+        <code>{years}</code> <code>{stack}</code> <code>{proof}</code> <code>{notice}</code> <code>{sent_date}</code>.
+        A line whose token is empty is left out. Phone, LinkedIn, GitHub and resume link are added as a signature.</p></div>
+    <div class="row"><button class="btn primary" id="aa-save">Save auto-apply settings</button>
+      <span class="hint" id="aa-msg"></span></div>
+    <div class="seclabel mt5"><h3>Last run</h3><span class="ln"></span></div>
+    ${status ? `<p class="hint mb3" id="aa-last">${esc(status.last_run_text || "")}${status.last_error ? " — <b>" + esc(status.last_error) + "</b>" : ""}</p>` :
+      `<p class="hint" id="aa-last">Nothing sent yet. The sender runs on your PC after each scrape (<code>auto_apply.py</code>).</p>`}
+    ${recent.length ? `<div class="scrollx"><table><thead><tr><th>When</th><th>Company</th><th>To</th><th>Type</th><th>Result</th></tr></thead><tbody>
+      ${recent.map(r => `<tr><td>${esc(new Date(r.at).toLocaleString([], { dateStyle:"short", timeStyle:"short" }))}</td>
+        <td class="strong">${esc(r.company)}</td><td>${esc(r.to)}</td><td>${esc(r.kind)}</td>
+        <td>${esc(r.result)}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
+
+  const num = (id, lo, hi, dflt) => Math.max(lo, Math.min(hi, Math.round(Number($(id).value)) || dflt));
+  // Rough length of the email as HR will see it: proof points filled in, other
+  // tokens counted as one word each. Under ~120 words reads well on a phone.
+  const words = () => {
+    const text = $("aa-body").value.replace("{proof}", $("aa-proof").value);
+    const n = (text.match(/\S+/g) || []).length;
+    $("aa-words").textContent = `${n} words` + (n > 120 ? " — try to stay under 120; HR reads these on a phone" : "");
+  };
+  $("aa-body").addEventListener("input", words);
+  $("aa-proof").addEventListener("input", words);
+  words();
+  $("aa-save").addEventListener("click", async () => {
+    const next = {
+      ...cfg,
+      enabled: $("aa-on").checked,
+      test_mode: $("aa-test").checked,
+      grades: $("aa-grades").value,
+      daily_limit: num("aa-limit", 1, 50, 30),
+      followup_enabled: $("aa-fu").checked,
+      followup_days: num("aa-fudays", 1, 30, 3),
+      window_start: num("aa-ws", 0, 23, 9),
+      window_end: num("aa-we", 1, 24, 19),
+      days: [...document.querySelectorAll("#aa-days input:checked")].map(x => Number(x.value)),
+      body: $("aa-body").value.trim() || AUTO_DEFAULTS.body,
+      proof: $("aa-proof").value.trim(),
+      exclude_companies: $("aa-ex").value.split("\n").map(x => x.trim()).filter(Boolean),
+      subject: $("aa-subj").value.trim() || AUTO_DEFAULTS.subject,
+      followup_body: $("aa-fubody").value.trim() || AUTO_DEFAULTS.followup_body,
+    };
+    if(next.window_end <= next.window_start){ toast("Send window: the end hour must be after the start"); return; }
+    if(!next.days.length){ toast("Pick at least one day to send on"); return; }
+    if(next.enabled && !next.test_mode && !confirm(
+      `Auto-apply will email up to ${next.daily_limit} companies a day from your Gmail, without asking first. Turn it on?`)) return;
+    try{
+      await api("/api/settings/auto_apply", { method: "PUT", body: JSON.stringify({ value: JSON.stringify(next) }) });
+      toast("Auto-apply settings saved");
+      paintAutoApply(host, next, status);
+    }catch(e){ $("aa-msg").textContent = "Couldn't save: " + e.message; }
+  });
+}
+
 function viewData(host){
   host.append(pageHead("Import & export",
     "Bring companies in from a file or the scraper, and take a full backup out. Imports only ever add — nothing already here gets overwritten."));
 
   const s = stack();
+
+  s.append(autoApplyCard());
 
   const imp = panel("Import", "CSV or JSON");
   imp.body.innerHTML = `
@@ -2751,11 +3564,274 @@ $("theme").addEventListener("click", () => {
 });
 applyTheme();
 
+/* ------------------------------------------------------- offline / app -- */
+/* Everything here is a no-op for the online web app: the bar stays hidden and
+   sw.js passes every request straight to the server. */
+let OFFLINE_SAVED_AT = 0;
+function showOffline(savedAt = 0){
+  if(savedAt) OFFLINE_SAVED_AT = OFFLINE_SAVED_AT ? Math.min(OFFLINE_SAVED_AT, savedAt) : savedAt;
+  const when = OFFLINE_SAVED_AT
+    ? " — showing data saved " + new Date(OFFLINE_SAVED_AT).toLocaleString([], { dateStyle:"medium", timeStyle:"short" })
+    : "";
+  const bar = $("offbar");
+  bar.textContent = "You're offline" + when + ". Changes can't be saved until you reconnect.";
+  bar.hidden = false;
+}
+addEventListener("offline", () => showOffline());
+addEventListener("online", async () => {
+  const wasOffline = !$("offbar").hidden;
+  $("offbar").hidden = true;
+  OFFLINE_SAVED_AT = 0;
+  if(!wasOffline) return;
+  // Back online: swap the device copy for live data without a page reload.
+  try{ await loadAll(); render(); toast("Back online — data refreshed"); }catch{}
+});
+
+// Phone only: explanation hints are clamped to two lines by CSS; a tap opens one.
+const PHONE = matchMedia("(max-width:860px)");
+document.addEventListener("click", (e) => {
+  if(!PHONE.matches) return;
+  const h = e.target.closest("p.hint:not([id])");
+  if(h && !e.target.closest("a,button,input,select,textarea")) h.classList.toggle("open");
+});
+
+if("serviceWorker" in navigator){
+  // update() on every open: a phone that installed the app days ago otherwise
+  // keeps the old service worker — and with it the old notification look —
+  // until the browser gets round to checking on its own.
+  navigator.serviceWorker.register("/sw.js").then(r => r.update()).catch(() => {});
+}
+
+/* In the installed app, save the screens that are otherwise only fetched when
+   opened (profile & settings, schedule, events), so they also work offline.
+   Skipped in a normal browser tab, which keeps the web app's load unchanged. */
+function warmOfflineCopy(){
+  if(!navigator.onLine || !matchMedia("(display-mode: standalone)").matches) return;
+  const paths = ["/api/schedule", "/api/events?limit=400"];
+  if(PROFILE_ID) paths.push("/api/profile/" + encodeURIComponent(PROFILE_ID));
+  for(const p of paths) api(p).catch(() => {});
+}
+
+/* -------------------------------------------------------- notifications -- */
+/* The bell shows the unread count from /api/notifications and opens the feed.
+   Everything the scraper, auto-apply and the 5pm summary report lands in that
+   feed; phone alerts are the same events pushed through sw.js. */
+const NT_ICON = { reply: "🎉", applied: "✉️", reminder: "📝", scrape: "🔎", summary: "📊", error: "⚠️", info: "ℹ️" };
+const NT_KINDS = [["reply", "HR replied"], ["reminder", "Morning reminder to apply by hand"],
+                  ["applied", "Applications sent"], ["scrape", "Scrape finished"],
+                  ["summary", "5pm daily summary"], ["error", "Something failed"]];
+let BELL_UNREAD = 0;
+
+/* ago() counts days, which is too coarse for "HR replied 20 minutes ago". */
+function ntAgo(ts){
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if(m < 1) return "just now";
+  if(m < 60) return m + " min ago";
+  if(m < 1440) return Math.floor(m / 60) + "h ago";
+  return new Date(ts).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+async function refreshBell(){
+  try{
+    const r = await api("/api/notifications?limit=1");
+    BELL_UNREAD = r.unread || 0;
+  }catch{ return; }
+  const b = $("bell-n");
+  b.textContent = BELL_UNREAD > 99 ? "99+" : String(BELL_UNREAD);
+  b.hidden = !BELL_UNREAD;
+  try{ BELL_UNREAD ? navigator.setAppBadge?.(BELL_UNREAD) : navigator.clearAppBadge?.(); }catch{}
+}
+
+function b64uToU8(s){
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while(s.length % 4) s += "=";
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+
+async function pushState(){
+  if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window))
+    return { supported: false };
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  return { supported: true, on: !!sub && Notification.permission === "granted", perm: Notification.permission };
+}
+
+async function enablePush(){
+  const st = await pushState();
+  if(!st.supported) throw new Error("This browser can't get phone alerts. On iPhone, add Pilot to the home screen first.");
+  const { key } = await api("/api/push");
+  if(!key) throw new Error("Phone alerts aren't set up on the server yet");
+  const perm = await Notification.requestPermission();
+  if(perm !== "granted") throw new Error("Notifications are blocked — allow them in this site's settings");
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(key) });
+  const ua = navigator.userAgent;
+  const label = (/Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iPhone" : "Computer") +
+    (/Edg\//.test(ua) ? " · Edge" : /Chrome\//.test(ua) ? " · Chrome" : /Firefox\//.test(ua) ? " · Firefox" : "");
+  await api("/api/push", { method: "POST", body: JSON.stringify({ subscription: sub.toJSON(), label }) });
+}
+
+async function disablePush(){
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if(sub){
+    await api("/api/push", { method: "DELETE", body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {});
+    await sub.unsubscribe();
+  }
+}
+
+async function openNotifications(){
+  const back = document.createElement("div");
+  back.className = "modalback";
+  const box = document.createElement("div");
+  box.className = "modal";
+  box.innerHTML = `<div class="modalhd"><h3>Notifications</h3>
+      <button class="btn sm ghost" id="nt-read">Mark all read</button>
+      <button class="btn sm ghost" id="nt-x">Close</button></div>
+    <div class="modalbd">
+      <div id="nt-push" class="callout info mb3">Checking phone alerts…</div>
+      <div id="nt-diag" class="hint mb3"></div>
+      <div class="ntlist" id="nt-list"><div class="loading">Loading…</div></div>
+      <details class="mt4"><summary class="hint">Which alerts reach this phone</summary>
+        <div class="stack mt3" id="nt-prefs" style="gap:var(--s2)"></div></details>
+    </div>`;
+  back.append(box);
+  document.body.append(back);
+  const close = () => { back.remove(); refreshBell(); };
+  box.querySelector("#nt-x").addEventListener("click", close);
+  back.addEventListener("click", (e) => { if(e.target === back) close(); });
+
+  const paintList = async () => {
+    const host = box.querySelector("#nt-list");
+    try{
+      const { items } = await api("/api/notifications?limit=60");
+      host.innerHTML = items.length ? items.map(n => `
+        <div class="nt${n.read_at ? "" : " unread"}">
+          <div class="nt-ic">${NT_ICON[n.kind] || "ℹ️"}</div>
+          <div><div class="nt-t">${esc(n.title)}</div>
+            ${n.body ? `<div class="nt-b">${esc(n.body)}</div>` : ""}
+            <div class="nt-time">${esc(ntAgo(n.created_at))}</div></div>
+        </div>`).join("")
+        : `<div class="empty"><b>Nothing yet</b>Scrapes, applications, replies and the 5pm summary show up here.</div>`;
+    }catch(e){ host.innerHTML = `<div class="empty">Couldn't load: ${esc(e.message)}</div>`; }
+  };
+
+  const paintPush = async () => {
+    const el = box.querySelector("#nt-push");
+    let st;
+    try{ st = await pushState(); }catch{ st = { supported: false }; }
+    let devices = 0;
+    try{ devices = (await api("/api/push")).devices || 0; }catch{}
+    if(!st.supported){
+      el.className = "callout warn mb3";
+      el.innerHTML = `<b>Phone alerts aren't available in this browser.</b> Open Pilot in Chrome on your phone, or install it to the home screen.`;
+      return;
+    }
+    el.className = "callout " + (st.on ? "" : "warn") + " mb3";
+    el.innerHTML = st.on
+      ? `<b>Phone alerts are on</b> for this device (${devices} device${devices === 1 ? "" : "s"} in total).
+         <div class="row mt2"><button class="btn sm" id="nt-test">Send a test</button>
+         <button class="btn sm" id="nt-test-all">Test every alert type</button>
+         <button class="btn sm ghost" id="nt-off">Turn off here</button></div>`
+      : `<b>Phone alerts are off</b> on this device${st.perm === "denied" ? " — notifications are blocked in this site's settings" : ""}.
+         <div class="row mt2"><button class="btn sm primary" id="nt-on">Turn on phone alerts</button></div>`;
+    el.querySelector("#nt-on")?.addEventListener("click", async () => {
+      try{ await enablePush(); toast("Phone alerts on"); paintPush(); }catch(e){ toast(e.message); }
+    });
+    el.querySelector("#nt-off")?.addEventListener("click", async () => {
+      await disablePush(); toast("Phone alerts off on this device"); paintPush();
+    });
+    el.querySelector("#nt-test-all")?.addEventListener("click", async () => {
+      try{
+        await api("/api/push", { method: "POST", body: JSON.stringify({ action: "test", all: true }) });
+        toast("Sent 4 test alerts — applied, summary, scrape (silent) and a reply");
+        paintList();
+      }catch(e){ toast("Test failed: " + e.message); }
+    });
+    el.querySelector("#nt-test")?.addEventListener("click", async () => {
+      try{
+        const r = await api("/api/push", { method: "POST", body: JSON.stringify({ action: "test" }) });
+        toast(r.pushed && r.pushed.sent ? "Test sent — check your notifications" : "Saved to the feed, but no device accepted the push");
+        paintList();
+      }catch(e){ toast("Test failed: " + e.message); }
+    });
+  };
+
+  const paintPrefs = async () => {
+    const host = box.querySelector("#nt-prefs");
+    let prefs = {};
+    try{ const r = await api("/api/settings/notify_prefs"); prefs = r.value ? JSON.parse(r.value) : {}; }catch{}
+    host.innerHTML = NT_KINDS.map(([k, label]) =>
+      `<label class="row tight"><input type="checkbox" data-k="${k}" ${prefs[k] === false ? "" : "checked"}> ${NT_ICON[k]} ${esc(label)}</label>`).join("") +
+      `<p class="hint" id="nt-prefs-hint">Every event is kept in this list either way — this only decides what buzzes the phone.</p>`;
+    host.querySelectorAll("input[data-k]").forEach(cb => cb.addEventListener("change", async () => {
+      const next = {};
+      host.querySelectorAll("input[data-k]").forEach(x => { next[x.dataset.k] = x.checked; });
+      try{ await api("/api/settings/notify_prefs", { method: "PUT", body: JSON.stringify({ value: JSON.stringify(next) }) }); toast("Saved"); }
+      catch(e){ toast("Couldn't save: " + e.message); }
+    }));
+  };
+
+  box.querySelector("#nt-read").addEventListener("click", async () => {
+    try{ await api("/api/notifications", { method: "POST", body: JSON.stringify({ action: "read" }) }); paintList(); refreshBell(); }
+    catch(e){ toast(e.message); }
+  });
+  const paintDiag = async () => {
+    // Share-to-Pilot and app-branded alerts both need Pilot installed as an app
+    // (Chrome's "Install"), not a home-screen shortcut — this says which it is.
+    const standalone = matchMedia("(display-mode: standalone)").matches;
+    let ver = "?";
+    try{
+      const reg = await navigator.serviceWorker.ready;
+      ver = await new Promise((ok) => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = (e) => ok(e.data);
+        (reg.active || navigator.serviceWorker.controller)?.postMessage("version", [ch.port2]);
+        setTimeout(() => ok("old (before v5)"), 1500);
+      });
+    }catch{}
+    box.querySelector("#nt-diag").innerHTML =
+      `App: <b>${standalone ? "installed ✓" : "open in a browser tab"}</b> · alert style version <b>${esc(ver)}</b>` +
+      (standalone ? "" : `<br>To share screenshots to Pilot and get alerts as "Pilot", install it as an app:
+        <button class="btn sm primary mt2" id="nt-install">Install Pilot</button>`);
+    box.querySelector("#nt-install")?.addEventListener("click", installPilot);
+  };
+  await Promise.all([paintList(), paintPush(), paintPrefs(), paintDiag()]);
+}
+
+$("bell").addEventListener("click", openNotifications);
+setInterval(() => { if(document.visibilityState === "visible") refreshBell(); }, 120000);
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") refreshBell(); });
+
 /* ---------------------------------------------------------------- boot -- */
+/** Pick up what Android's share sheet handed sw.js (see receiveShare there). */
+async function takeSharedItems(){
+  if(!/[?&]shared=1/.test(location.search + document.referrer) && VIEW !== "add") return;
+  try{
+    const cache = await caches.open("pilot-share");
+    const metaRes = await cache.match("/shared/meta");
+    if(!metaRes) return;
+    const meta = await metaRes.json();
+    const files = [];
+    for(let i = 0; i < (meta.count || 0); i++){
+      const r = await cache.match(`/shared/${i}`);
+      if(r) files.push(await r.blob());
+    }
+    await caches.delete("pilot-share");
+    SHARED_PENDING = { files, title: meta.title, text: meta.text, url: meta.url };
+    VIEW = "add";
+  }catch{ /* no cache API, or nothing shared */ }
+}
+
 (async function boot(){
+  if(!navigator.onLine) showOffline();
+  await takeSharedItems();
   try{
     await loadAll();
     render();
+    setTimeout(warmOfflineCopy, 3000);
+    refreshBell();
   }catch(e){
     $("content").innerHTML = `<div class="empty">Couldn't load data: ${esc(e.message)}</div>`;
   }

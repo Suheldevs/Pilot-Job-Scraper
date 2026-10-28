@@ -43,6 +43,19 @@ REM agency reposts and stale listings. Tighten to B or A for a shorter list,
 REM or add --require-contact to see only leads you can actually reach.
 "%~dp0venv\Scripts\python.exe" -u push.py --min-grade C --prune-days 10 --max-probes 25 >> scrape.log 2>&1
 set RC=%ERRORLEVEL%
+REM push.py reports its own handled failures; this catches a crash it could not.
+if not "%RC%"=="0" "%~dp0venv\Scripts\python.exe" -u notify.py error "Scrape run failed (exit %RC%)" "push.py stopped early - see scrape.log on the PC." >> scrape.log 2>&1
+
+REM Website emails: finds HR addresses on company sites for grade A/B leads
+REM with no contact. Once a day at most (Firecrawl credits); a no-op otherwise.
+echo ---- website emails ---- >> scrape.log
+"%~dp0venv\Scripts\python.exe" -u enrich_contacts.py >> scrape.log 2>&1
+
+REM Auto-apply: emails grade A/B leads, follows up, picks up replies. It does
+REM nothing unless switched on in the dashboard (Data -> Auto-apply), and its
+REM exit code is not folded into RC — a mail problem is not a scrape failure.
+echo ---- auto-apply ---- >> scrape.log
+"%~dp0venv\Scripts\python.exe" -u auto_apply.py >> scrape.log 2>&1
 
 echo ======== [%DATE% %TIME%] scrape end (exit %RC%) ======== >> scrape.log
 

@@ -154,6 +154,15 @@ def login(client: httpx.Client, base_url: str, email: str, password: str) -> Non
     client.cookies.set("session", token)
 
 
+def notify(client: httpx.Client, base_url: str, kind: str, title: str, body: str = "") -> None:
+    """Report to the dashboard's notification feed (and the phone). Never fatal."""
+    try:
+        client.post(f"{base_url}/api/notifications", timeout=30,
+                    json={"action": "notify", "kind": kind, "title": title, "body": body, "url": "/"})
+    except Exception as e:
+        print(f"(notification not delivered: {e})")
+
+
 def push(client: httpx.Client, base_url: str, companies: List[dict]) -> Tuple[int, int]:
     """POST companies in chunks. Returns (submitted, skipped) totals."""
     submitted = skipped = 0
@@ -368,8 +377,19 @@ def main():
         print(f"\nDone — submitted {submitted}, skipped {skipped}. "
               "Existing companies were left untouched.")
         rec.end("ok", counts={"submitted": submitted, "skipped": skipped})
+
+        names = {"blr": "Bangalore", "pune": "Pune", "lko": "Lucknow", "noida": "Noida", "rem": "Remote"}
+        with_hr = sum(1 for c in companies if c.get("hr"))
+        posts = platforms.get("li_post", 0)
+        notify(client, base_url, "scrape",
+               f"Scrape done — {len(companies)} leads",
+               "Grades " + ", ".join(f"{g}:{grades[g]}" for g in "ABC" if g in grades) + "\n"
+               + " · ".join(f"{names[t]} {n}" for t, n in per_tab.items() if n) + "\n"
+               + f"{with_hr} with an HR email" + (f" · {posts} from LinkedIn posts" if posts else ""))
     except PushError as e:
         print(f"\nERROR: {e}")
+        if not args.dry_run:
+            notify(client, base_url, "error", "Scrape failed", str(e)[:500])
         rec.error("push", str(e))
         rec.end("fail", message=str(e)[:300])
         # Still try to save the run log — knowing the run failed, and where, is

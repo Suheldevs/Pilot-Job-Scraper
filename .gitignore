@@ -17,3 +17,9 @@ seed-data.sql
 .secrets-78d.txt
 dump-*.sql
 profile.json
+apply_state.json
+apply_state.tmp
+resume.pdf
+.firecrawl-state.json
+.firecrawl-state.tmp
+.vapid.json

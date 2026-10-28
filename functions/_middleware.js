@@ -36,6 +36,21 @@
 import { signSession, verifySession, parseCookie } from "./lib/auth.js";
 import { verifyPassword, hasNoPassword, needsRehash, hashPassword } from "./lib/password.js";
 
+/* Sessions slide: every API call made with a session that has used up more than
+ * a day of its life gets a fresh one, so anyone who opens the app at least once
+ * every SESSION_DAYS stays signed in indefinitely. SameSite=Lax rather than
+ * Strict so opening Pilot from another app — the 5pm summary email, a tapped
+ * notification, a link in WhatsApp — still carries the session; Lax still keeps
+ * the cookie off cross-site POSTs, which is the CSRF case that matters here. */
+const SESSION_DAYS = 90;
+const sessionCookie = (token) =>
+  `session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}`;
+
+// /share-target only redirects to the Add screen (functions/share-target.js) and
+// touches no data; it is public because the share sheet's POST may arrive
+// without the session cookie, and the login page is the wrong answer to a share.
+const PUBLIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/offline", "/offline.html", "/share-target"]);
+
 const LOGIN_PAGE = (error) => `<!doctype html>
 <html lang="en">
 <head>
@@ -43,6 +58,11 @@ const LOGIN_PAGE = (error) => `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Sign in — Pilot</title>
+<meta name="theme-color" content="#1d6b3f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<script>if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -88,6 +108,14 @@ export async function onRequest(context) {
     return handleLogin(request, env);
   }
 
+  // The installable-app files carry no user data, and Android fetches the
+  // manifest and icons WITHOUT the session cookie — gating them would serve the
+  // login page instead and Chrome would never offer to install. The service
+  // worker has to be reachable from the login page for the same reason.
+  if (PUBLIC_FILES.has(url.pathname) || url.pathname.startsWith("/icons/")) {
+    return next();
+  }
+
   const session = await verifySession(env.SESSION_SECRET, parseCookie(request.headers.get("Cookie"), "session"));
 
   if (!session) {
@@ -126,6 +154,14 @@ export async function onRequest(context) {
       });
     }
     data.user = { id: user.id, email: user.email, name: user.name, is_admin: !!user.is_admin };
+
+    if (session.exp - Date.now() < (SESSION_DAYS - 1) * 86400000) {
+      const res = await next();
+      const fresh = new Response(res.body, res);   // next()'s headers may be immutable
+      fresh.headers.append("Set-Cookie", sessionCookie(
+        await signSession(env.SESSION_SECRET, user.id, user.session_epoch || 0, SESSION_DAYS)));
+      return fresh;
+    }
   }
 
   return next();
@@ -206,8 +242,8 @@ async function handleLogin(request, env) {
   }
   await env.DB.batch(writes);
 
-  const token = await signSession(env.SESSION_SECRET, user.id, user.session_epoch || 0, 30);
-  const cookie = `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${30 * 86400}`;
+  const token = await signSession(env.SESSION_SECRET, user.id, user.session_epoch || 0, SESSION_DAYS);
+  const cookie = sessionCookie(token);
 
   if (wantsJson) {
     // push.py and the browser extension log in over JSON and read the cookie off

@@ -80,6 +80,28 @@ def main() -> int:
             f.write(line)
     rc = proc.wait()
 
+    def step(label, *argv):
+        log(f"---- {label} ----")
+        p = subprocess.Popen(
+            [sys.executable, "-u", *argv], cwd=str(HERE), env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+        )
+        with LOG_FILE.open("a", encoding="utf-8") as f:
+            for line in p.stdout:
+                print(line, end="")
+                f.write(line)
+        return p.wait()
+
+    # Same order as scrape.cmd. push.py reports its own handled failures; a
+    # crash it could not report gets one here. Website emails and auto-apply
+    # are no-ops unless due / switched on, and their exit codes are not the
+    # scrape's.
+    if rc != 0:
+        step("notify", str(HERE / "notify.py"), "error", f"Scrape run failed (exit {rc})",
+             "push.py stopped early - see scrape.log on the PC.")
+    step("website emails", str(HERE / "enrich_contacts.py"))
+    step("auto-apply", str(HERE / "auto_apply.py"))
+
     log(f"======== [{time.strftime('%Y-%m-%d %H:%M:%S')}] scrape end (exit {rc}) ========")
     trim_log()
     return rc

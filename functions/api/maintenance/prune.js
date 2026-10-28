@@ -17,9 +17,11 @@
  *    - no note              a note you typed is a deliberate human signal
  *    - created_at older than `days`
  *
- *  Note a contact address does NOT protect a row. An extracted email is
- *  machine output, not evidence you were interested, and treating it as
- *  protection was letting the database fill with unapplied leads.
+ *  An HR inbox buys a lead time, not immunity: a row whose `hr` list is
+ *  non-empty survives until it is HR_GRACE_DAYS old (30) instead of `days`.
+ *  Those are the leads auto-apply and outreach can actually use, and a few
+ *  extra weeks costs little — but protecting them forever was what used to let
+ *  the database fill with unapplied leads, so the grace still ends.
  *
  *  PER-PROFILE (migration 008)
  *  ---------------------------
@@ -45,7 +47,8 @@ import { resolveProfileId, PROGRESS_ON_PROFILE } from "../../lib/profile.js";
 
 const DEFAULT_DAYS = 10;
 
-// ?1 = profile id, ?2 = cutoff. Same numbering as everywhere else in the app.
+// ?1 = profile id, ?2 = cutoff, ?3 = the later cutoff for leads with an HR inbox.
+const HR_GRACE_DAYS = 30;
 const WHERE = `
   c.source = 'scraped'
   AND c.profile_id = ?1
@@ -57,6 +60,7 @@ const WHERE = `
        AND (p2.stage != 'none' OR COALESCE(p2.note, '') != '')
   )
   AND c.created_at < ?2
+  AND (COALESCE(c.hr, '') IN ('', '[]') OR c.created_at < ?3)
 `;
 
 const SELECT_SQL = `
@@ -87,7 +91,8 @@ export async function onRequestPost(context) {
   const cutoff = Date.now() - days * 86400000;
   const dryRun = Boolean(body.dry_run);
 
-  const { results } = await env.DB.prepare(SELECT_SQL).bind(profile.id, cutoff).all();
+  const hrCutoff = Math.min(cutoff, Date.now() - HR_GRACE_DAYS * 86400000);
+  const { results } = await env.DB.prepare(SELECT_SQL).bind(profile.id, cutoff, hrCutoff).all();
 
   if (dryRun) {
     return json({ dry_run: true, profile_id: profile.id, days, would_remove: results.length, rows: results });
@@ -128,7 +133,8 @@ export async function onRequestGet(context) {
   if (profile.error) return json({ error: profile.error }, { status: profile.status });
 
   const cutoff = Date.now() - days * 86400000;
-  const { results } = await env.DB.prepare(SELECT_SQL).bind(profile.id, cutoff).all();
+  const hrCutoff = Math.min(cutoff, Date.now() - HR_GRACE_DAYS * 86400000);
+  const { results } = await env.DB.prepare(SELECT_SQL).bind(profile.id, cutoff, hrCutoff).all();
 
   return json({ profile_id: profile.id, days, would_remove: results.length, rows: results });
 }

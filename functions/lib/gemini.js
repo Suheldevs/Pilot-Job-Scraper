@@ -92,6 +92,7 @@ export async function callGemini(env, opts = {}) {
     system = "",
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxOutputTokens = 4096,
+    thinkingLevel = "low",   // "medium"/"high" where accuracy beats speed (screenshot reading)
   } = opts;
 
   const contentParts = Array.isArray(parts) && parts.length
@@ -107,7 +108,7 @@ export async function callGemini(env, opts = {}) {
     // The 3.x flash tier thinks by default. These are extraction and drafting
     // tasks with a fixed output shape, so the cheapest level keeps latency
     // inside the timeout above without measurably worse answers.
-    thinkingConfig: { thinkingLevel: "low" },
+    thinkingConfig: { thinkingLevel },
   };
   if (schema) generationConfig.responseSchema = schema;
 

@@ -14,20 +14,21 @@
  *  migration 008. `progress` is keyed by (profile_id, company_id) now, so a
  *  stage set here can never be read by another profile.
  */
-import { json, badRequest, notFound, VALID_STAGES } from "../../lib/db.js";
+import { json, badRequest, notFound, VALID_STAGES, companyIdParam } from "../../lib/db.js";
 import { resolveProfileId } from "../../lib/profile.js";
 
 export async function onRequestGet(context) {
   const { request, env, params } = context;
   const userId = context.data.userId;
   const url = new URL(request.url);
+  const id = companyIdParam(params);
 
   const profile = await resolveProfileId(env, url, null, userId);
   if (profile.error) return json({ error: profile.error }, { status: profile.status });
 
   const row = await env.DB
     .prepare("SELECT * FROM progress WHERE profile_id = ?1 AND company_id = ?2")
-    .bind(profile.id, params.id)
+    .bind(profile.id, id)
     .first();
   if (row) return json(row);
 
@@ -37,12 +38,12 @@ export async function onRequestGet(context) {
   // 292 empty rows per profile would be waste. So answer the question the
   // caller actually asked instead of 404-ing on a company that exists: the
   // stage is 'none'. A 404 is still the answer for a company we do not have.
-  const company = await env.DB.prepare("SELECT id FROM companies WHERE id = ?1").bind(params.id).first();
+  const company = await env.DB.prepare("SELECT id FROM companies WHERE id = ?1").bind(id).first();
   if (!company) return notFound();
 
   return json({
     profile_id: profile.id,
-    company_id: params.id,
+    company_id: id,
     stage: "none",
     note: "",
     lead_note: "",
@@ -54,7 +55,7 @@ export async function onRequestPut(context) {
   const { request, env, params } = context;
   const userId = context.data.userId;
   const url = new URL(request.url);
-  const id = params.id;
+  const id = companyIdParam(params);
   const body = await request.json().catch(() => null);
   if (!body || !VALID_STAGES.includes(body.stage)) return badRequest("valid stage required");
 

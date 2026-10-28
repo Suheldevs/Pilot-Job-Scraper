@@ -45,6 +45,8 @@ DISCOVERY = {
     "instahyre": ("sources.instahyre", "InstahyreSource"),
     # employer-posted, contact usually included
     "hackernews": ("sources.hackernews", "HackerNewsSource"),
+    # public LinkedIn hiring posts, found via Firecrawl search (once a day)
+    "li_post": ("sources.linkedin_posts", "LinkedInPostsSource"),
     # search / sitemap crawls
     "linkedin": ("sources.linkedin", "LinkedInSource"),
     "naukri_sitemap": ("sources.naukri_sitemap", "NaukriSitemapSource"),
@@ -345,6 +347,20 @@ def build_companies(jobs: List[Job]) -> Tuple[List[dict], int]:
                 "reasons": job.reasons,
                 "jd_excerpt": (job.jd_text or "")[:600],
                 "posted_at": int(job.posted_at.timestamp() * 1000) if job.posted_at else None,
+                # Optional job detail the bulk endpoint already stores. Experience
+                # matters most: auto-apply skips a post asking for more years than
+                # the profile allows, and it can only do that if the number arrives.
+                "experience_raw": job.experience_raw,
+                "experience_min": job.experience_min,
+                "experience_max": job.experience_max,
+                "salary_raw": job.salary_raw,
+                "salary_min": job.salary_min,
+                "salary_max": job.salary_max,
+                "salary_currency": job.salary_currency,
+                "employment_type": job.employment_type,
+                "remote_type": job.remote_type,
+                "apply_url": job.apply_url,
+                "company_website": job.company_website,
             })
     return out, dropped
 

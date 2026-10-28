@@ -59,8 +59,9 @@ const PROJECT = TARGET.project;
 const SITE = TARGET.site;
 
 // Only these ship. Everything else in the project is tooling or secrets.
-const ASSETS = ["index.html", "sample-import.csv", "IMPORT-FORMAT.md", "README.md", "DOCS.md"];
-const DIRS = ["functions"];
+const ASSETS = ["index.html", "sample-import.csv", "IMPORT-FORMAT.md", "README.md", "DOCS.md",
+                "manifest.webmanifest", "sw.js", "offline.html"];
+const DIRS = ["functions", "icons"];
 
 const WRANGLER = `
 name = "${PROJECT}"
@@ -118,6 +119,15 @@ if (fs.existsSync(genPath)) {
     if (m && m[2].length > 6 && !NON_SECRET_KEYS.has(m[1])) SECRET_VALUES.push(m[2]);
   }
 }
+// The phone-push signing key lives in .vapid.json and as a Pages secret; it must
+// never ship as an asset. (The public key is meant to be public, so it is not screened.)
+const vapidPath = path.join(ROOT, ".vapid.json");
+if (fs.existsSync(vapidPath)) {
+  try {
+    const v = JSON.parse(fs.readFileSync(vapidPath, "utf8"));
+    if (v.VAPID_PRIVATE_KEY) SECRET_VALUES.push(v.VAPID_PRIVATE_KEY);
+  } catch { die(".vapid.json is not valid JSON"); }
+}
 ok(`token + account id loaded (${SECRET_VALUES.length} secret values will be screened for)`);
 
 /* ------------------------------------------------------------- preflight -- */
@@ -141,8 +151,14 @@ const jsFiles = [];
   }
 })(path.join(ROOT, "functions"));
 
+// The service worker runs outside functions/ but breaks the installed app just
+// as badly if it fails to parse.
+jsFiles.push(path.join(ROOT, "sw.js"));
+
 for (const f of jsFiles) {
-  const r = spawnSync(process.execPath, ["--check", f], { encoding: "utf8" });
+  // Module mode: Pages Functions are ES modules, and a plain --check let a raw
+  // newline inside a string literal through — a Worker that then fails to load.
+  const r = spawnSync(process.execPath, ["--experimental-default-type=module", "--check", f], { encoding: "utf8" });
   if (r.status !== 0) die(`${path.relative(ROOT, f)} failed to parse:\n${r.stderr}`);
 }
 ok(`${jsFiles.length} function files parse cleanly`);
@@ -153,10 +169,20 @@ const inline = /<script>([\s\S]*?)<\/script>/.exec(html);
 if (!inline) die("index.html has no inline <script> — that can't be right");
 const tmpJs = path.join(os.tmpdir(), `pilot-inline-${process.pid}.js`);
 fs.writeFileSync(tmpJs, inline[1]);
-const chk = spawnSync(process.execPath, ["--check", tmpJs], { encoding: "utf8" });
+const chk = spawnSync(process.execPath, ["--experimental-default-type=module", "--check", tmpJs], { encoding: "utf8" });
 fs.rmSync(tmpJs, { force: true });
 if (chk.status !== 0) die(`index.html inline script failed to parse:\n${chk.stderr}`);
 ok("index.html inline script parses cleanly");
+
+// A dropped </style> or </script> doesn't break any parse check — the browser
+// just swallows the rest of the page as CSS or text and renders nothing. Count
+// the raw-text elements so that can never ship.
+for (const tag of ["style", "script", "textarea"]) {
+  const open = (html.match(new RegExp(`<${tag}[\\s>]`, "g")) || []).length;
+  const close = (html.match(new RegExp(`</${tag}>`, "g")) || []).length;
+  if (open !== close) die(`index.html has ${open} <${tag}> but ${close} </${tag}> — the page would render blank`);
+}
+ok("index.html tags balance (style / script / textarea)");
 
 /* --------------------------------------------------------------- staging -- */
 step("3. Staging a clean bundle");

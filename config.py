@@ -63,3 +63,11 @@ DELAY_BETWEEN_REQUESTS = 2.0  # seconds, between successful requests to the same
 # Pages fetched per (keyword, location) pair, per source.
 NAUKRI_MAX_PAGES = 2
 LINKEDIN_MAX_PAGES = 2
+
+# Priority cities get a deeper LinkedIn search: these extra role phrasings on top
+# of the profile's search_roles, and a 14-day window instead of 7 — local
+# openings there are few and each one matters. They are also searched FIRST, so
+# when LinkedIn starts answering 429 it is the other cities that lose results.
+PRIORITY_LOCATIONS = ["Lucknow", "Noida"]
+PRIORITY_EXTRA_KEYWORDS = ["javascript developer", "frontend developer", "backend developer",
+                           "next.js developer", "mern developer"]
