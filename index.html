@@ -2129,6 +2129,7 @@ function viewEvents(host){
       e.innerHTML = `<b>No events yet</b>The scraper records one as soon as it next runs ` +
         `(every 6 hours, or run <span class="mono">push.py</span> yourself).`;
       s.append(e);
+      s.append(emailHistoryPanel());
       return;
     }
 
@@ -2192,6 +2193,8 @@ function viewEvents(host){
       s.append(c.card);
     }
 
+    s.append(emailHistoryPanel());
+
     const tools = panel("Housekeeping");
     tools.body.innerHTML = `
       <p class="hint mb3">Events are append-only and one arrives every
@@ -2215,6 +2218,37 @@ function viewEvents(host){
       }catch(e){ $("ev-status").textContent = "Prune failed: " + e.message; }
     });
   })();
+}
+
+/* Every email auto-apply has sent, newest first, from the apply_log table: the
+   first email plus what happened after (follow-up, reply, bounce). */
+function emailHistoryPanel(){
+  const p = panel("Email send history", "sent by auto-apply");
+  p.body.innerHTML = `<div class="loading">Loading…</div>`;
+  (async () => {
+    let rows, next = "";
+    try{
+      rows = await api("/api/apply-log");
+      const [a, st] = await Promise.all([
+        api("/api/settings/auto_apply").catch(() => null), api("/api/settings/auto_apply_status").catch(() => null)]);
+      next = nextAutoText({ ...AUTO_DEFAULTS, ...(a && a.value ? JSON.parse(a.value) : {}) },
+        st && st.value ? JSON.parse(st.value) : null);
+    }catch(e){
+      p.body.innerHTML = `<div class="empty">Couldn't load the send log: ${esc(e.message)}</div>`; return;
+    }
+    const nextHtml = `<p class="hint mb3">${esc(next)}</p>`;
+    if(!rows.length){
+      p.body.innerHTML = nextHtml + `<div class="empty"><b>No emails sent yet</b>Each email auto-apply sends to a company is listed here. Test-mode emails go to your own inbox and are not logged.</div>`;
+      return;
+    }
+    const when = t => t ? new Date(t).toLocaleString([], { dateStyle:"short", timeStyle:"short" }) : "";
+    const state = r => r.bounced_at ? `Bounced ${when(r.bounced_at)}` : r.replied_at ? `Replied ${when(r.replied_at)}` :
+      r.followup_at ? `Followed up ${when(r.followup_at)}` : "Sent";
+    p.body.innerHTML = nextHtml + `<div class="scrollx"><table><thead><tr><th>Sent</th><th>Company</th><th>To</th><th>Subject</th><th>Status</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${esc(when(r.sent_at))}</td><td class="strong">${esc(r.company)}</td>
+        <td>${esc(r.to_addr)}</td><td>${esc(r.subject)}</td><td>${esc(state(r))}</td></tr>`).join("")}</tbody></table></div>`;
+  })();
+  return p.card;
 }
 
 /* --------------------------------------------------------------- data --- */
@@ -2245,6 +2279,32 @@ const AUTO_DEFAULTS = {
     "I'd be glad to share anything else that helps — portfolio, references or a quick call.\n\nThanks,\n{name}",
 };
 
+/* When auto-apply next gets a chance to send. The sender is not a dashboard job:
+   apply.cmd on the PC runs it from two Task Scheduler tasks, 11:00 and 18:00
+   (PC time, IST). An estimate — it can't see the PC — that skips runs outside
+   the send window or on a day that is not ticked. */
+const APPLY_RUN_HOURS = [11, 18];
+function nextAutoRun(cfg){
+  if(!cfg.enabled) return null;
+  const days = cfg.days && cfg.days.length ? cfg.days : [0,1,2,3,4];
+  const now = new Date();
+  for(let d = 0; d < 8; d++){
+    for(const h of APPLY_RUN_HOURS){
+      const t = new Date(now); t.setDate(t.getDate() + d); t.setHours(h, 0, 0, 0);
+      const wd = (t.getDay() + 6) % 7;                     // Mon=0, like Python
+      if(t > now && days.includes(wd) && h >= cfg.window_start && h < cfg.window_end) return t;
+    }
+  }
+  return null;
+}
+function nextAutoText(cfg, status){
+  if(!cfg.enabled) return "Auto-apply is off — nothing is scheduled.";
+  const n = nextAutoRun(cfg, status);
+  if(!n) return "No send day is selected.";
+  return "Next send chance (estimate): " + n.toLocaleString([], { weekday:"short", hour:"2-digit", minute:"2-digit" }) +
+    (cfg.test_mode ? " · test mode" : "");
+}
+
 function autoApplyCard(){
   const p = panel("Auto-apply", "email · runs after each scrape");
   p.body.innerHTML = `<div class="loading">Loading…</div>`;
@@ -2271,6 +2331,7 @@ function paintAutoApply(host, cfg, status){
       Grade ${esc(cfg.grades.split("").join("/"))} leads with a real HR email get the email below and your resume from Gmail,
       then move to <b>Contacted</b>. Replies move them to <b>Replied</b>.
       ${cfg.test_mode ? "Test mode sends every email to your own inbox instead — check them, then switch it off." : ""}
+      <br><span id="aa-next">${esc(nextAutoText(cfg, status))}</span>
     </div>
     <div class="row mb3">
       <label class="row tight"><input type="checkbox" id="aa-on" ${cfg.enabled ? "checked" : ""}> Auto-apply on</label>
@@ -2330,6 +2391,22 @@ function paintAutoApply(host, cfg, status){
   $("aa-body").addEventListener("input", words);
   $("aa-proof").addEventListener("input", words);
   words();
+  // The two switches take effect on their own: only that flag is saved, on top
+  // of the last saved settings, so half-edited text below is neither lost nor sent.
+  const flip = async (key, box) => {
+    const next = { ...cfg, [key]: box.checked };
+    if(next.enabled && !next.test_mode && !confirm(
+      `Auto-apply will email up to ${next.daily_limit} companies a day from your Gmail, without asking first. Turn it on?`)){
+      box.checked = !box.checked; return;
+    }
+    try{
+      await api("/api/settings/auto_apply", { method: "PUT", body: JSON.stringify({ value: JSON.stringify(next) }) });
+      toast("Auto-apply " + (next.enabled ? (next.test_mode ? "on — test mode" : "on") : "off"));
+      paintAutoApply(host, next, status);
+    }catch(e){ box.checked = !box.checked; $("aa-msg").textContent = "Couldn't save: " + e.message; }
+  };
+  $("aa-on").addEventListener("change", () => flip("enabled", $("aa-on")));
+  $("aa-test").addEventListener("change", () => flip("test_mode", $("aa-test")));
   $("aa-save").addEventListener("click", async () => {
     const next = {
       ...cfg,

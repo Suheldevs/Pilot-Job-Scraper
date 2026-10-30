@@ -1,5 +1,5 @@
 @echo off
-REM Auto-scrape wrapper, run by the "Pilot scrape" scheduled task every 6h.
+REM Auto-scrape wrapper, run by the "Pilot scrape" scheduled task daily at 5pm.
 REM Credentials come from .push-credentials (gitignored) so the passphrase is
 REM never baked into the task definition or the log.
 
@@ -51,11 +51,7 @@ REM with no contact. Once a day at most (Firecrawl credits); a no-op otherwise.
 echo ---- website emails ---- >> scrape.log
 "%~dp0venv\Scripts\python.exe" -u enrich_contacts.py >> scrape.log 2>&1
 
-REM Auto-apply: emails grade A/B leads, follows up, picks up replies. It does
-REM nothing unless switched on in the dashboard (Data -> Auto-apply), and its
-REM exit code is not folded into RC — a mail problem is not a scrape failure.
-echo ---- auto-apply ---- >> scrape.log
-"%~dp0venv\Scripts\python.exe" -u auto_apply.py >> scrape.log 2>&1
+REM Auto-apply no longer runs here: apply.cmd runs it at 11am and 6pm.
 
 echo ======== [%DATE% %TIME%] scrape end (exit %RC%) ======== >> scrape.log
 
