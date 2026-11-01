@@ -1,7 +1,11 @@
 """Auto-apply — email grade A/B leads from your Gmail, follow up once, track replies.
 
-Runs on this PC after each scrape (scrape.cmd calls it), or by hand:
+Runs from cron on the VPS twice a day, Monday to Friday by the dashboard's day
+picker: 11:00 IST with --batch morning and 18:00 IST with --batch evening, each
+after waiting for the 10:00 / 17:00 scrape to finish. Each batch has its own
+size (dashboard: Data -> Auto-apply). Or by hand:
 
+    python auto_apply.py --batch morning   # what the 11:00 cron runs
     python auto_apply.py              # a real run, as configured in the dashboard
     python auto_apply.py --dry-run    # print what it would do; sends and writes nothing
     python auto_apply.py --preview    # dry run ignoring on/off, window and test mode
@@ -20,16 +24,23 @@ One run, in order:
   2. replies   — IMAP: mail from a company we wrote to (same address or domain)
                  moves that lead to Replied, cancels its follow-up and pings the
                  phone. Bounces are recorded.
-  3. follow-up — one per company, threaded under the first email, once
+  3. scheduled — companies you set to "Scheduled" in Pipeline or Directory,
+                 oldest first, ahead of everything else. Hand-picked, so the
+                 grade, job-title and experience gates are skipped; the safety
+                 checks below still apply. HR address first, else a generic one.
+  4. follow-up — one per company, threaded under the first email, once
                  `followup_days` have passed with no reply and the lead is still
                  at Contacted (moving it yourself cancels the follow-up).
-  4. new       — grade-matched leads at "Not contacted" with an HR inbox, newest
+  5. new       — grade-matched leads at "Not contacted" with an HR inbox, newest
                  job first, until the daily limit is used up.
 
 Guard rails, enforced here rather than trusted to the settings form:
   * hard cap of 50 emails a day whatever the setting says, sends spaced 45-120s;
   * only inside the send window, on the chosen weekdays;
   * never a second first-email to the same company, address or email domain;
+  * never a company you already contacted yourself: any stage past "Not
+    contacted" in Pipeline, or any status past it in Directory, matched across
+    both lists by company name and email domain;
   * current company (from Profile) and every listed previous company skipped,
     by name and by the HR address's domain;
   * the job title must name one of the profile's must-have skills;
@@ -66,7 +77,9 @@ DEFAULTS = {
     "enabled": False,
     "test_mode": True,
     "grades": "AB",
-    "daily_limit": 30,
+    "daily_limit": 50,
+    "batch_morning": 35,        # the 11:00 run
+    "batch_evening": 15,        # the 18:00 run
     "followup_enabled": True,
     "followup_days": 3,
     "window_start": 10,
@@ -181,8 +194,7 @@ def fill(tpl: str, me: dict, company: str, job: str, sent_date: str = "", proof:
 
 def signature(me: dict) -> str:
     lines = [me["name"]]
-    for label, key in (("Phone", "phone"), ("LinkedIn", "linkedin"), ("GitHub", "github"),
-                       ("Portfolio", "portfolio"), ("Resume", "resume_url")):
+    for label, key in (("Phone", "phone"), ("LinkedIn", "linkedin"), ("Resume", "resume_url")):
         if me.get(key):
             lines.append(f"{label}: {me[key]}")
     return "\n".join(lines)
@@ -308,6 +320,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="print what would happen; send and write nothing")
     ap.add_argument("--preview", action="store_true",
                     help="dry run that ignores the on/off switch, send window and test mode — shows the real queue")
+    ap.add_argument("--batch", choices=["morning", "evening"],
+                    help="a scheduled run: send this batch's share and ignore the send-window hours")
     args = ap.parse_args()
     if args.preview:
         args.dry_run = True
@@ -378,6 +392,15 @@ def main() -> int:
 
     companies = dash.get("/api/companies")
     by_id = {c["id"]: c for c in companies}
+    # Directory companies (migration 014) are a second source, used only for the
+    # ones set to "Scheduled". Their send-log keys carry a "dir:" prefix, so they
+    # can never collide with a Pipeline lead's id ("lko:acme" exists in both).
+    try:
+        directory = dash.get("/api/directory")
+    except Exception as e:
+        directory = []
+        errors.append(f"could not read the Directory ({e}); scheduled Directory companies skipped")
+    dir_by_key = {"dir:" + d["id"]: d for d in directory}
     test = bool(cfg["test_mode"])
     mailer = Mailer(gmail, gpw, args.dry_run)
 
@@ -402,12 +425,20 @@ def main() -> int:
                     note = (c.get("stage_note") or "").rstrip()
                     note = (note + "\n" if note else "") + f"Replied (auto-detected {now:%d %b})."
                     dash.put(f"/api/progress/{quote(cid, safe='')}", {"stage": "replied", "note": note})
+                d = dir_by_key.get(cid)
+                if d and d.get("status") in ("contacted", "emailed", "scheduled") and not args.dry_run:
+                    dash.put(f"/api/directory/{quote(d['id'], safe='')}", {"status": "replied"})
         if not args.dry_run:
             save_state(state)
 
     # ---- send window & quota --------------------------------------------------
-    limit = min(int(cfg["daily_limit"] or 0), HARD_DAILY_CAP)
     used = state["days"].get(today, 0)
+    if args.batch:
+        # Each scheduled run sends its own share on top of what the day has used,
+        # so a short morning does not make the evening run send more than its batch.
+        limit = min(used + int(cfg.get(f"batch_{args.batch}") or 0), HARD_DAILY_CAP)
+    else:
+        limit = min(int(cfg["daily_limit"] or 0), HARD_DAILY_CAP)
     if test:
         # Test mode records nothing as sent, so the same leads come round again
         # every run — a few samples in your inbox is the point, not a full day's quota.
@@ -415,7 +446,10 @@ def main() -> int:
     days = cfg.get("days")
     if days is None:                          # settings saved before weekday picking existed
         days = [0, 1, 2, 3, 4, 5] if cfg.get("skip_sunday", True) else list(range(7))
-    in_window = int(cfg["window_start"]) <= now.hour < int(cfg["window_end"]) and now.weekday() in days
+    if args.batch:
+        in_window = now.weekday() in days    # cron already chose the hour
+    else:
+        in_window = int(cfg["window_start"]) <= now.hour < int(cfg["window_end"]) and now.weekday() in days
     in_window = in_window or args.preview
     if not in_window:
         if not args.dry_run:
@@ -429,7 +463,8 @@ def main() -> int:
     # HEADS_UP_SECONDS, then re-reads the on/off switch so turning auto-apply off
     # in the dashboard during the wait cancels the batch.
     if not args.dry_run:
-        out = subprocess.run([sys.executable, "-u", str(Path(__file__).resolve()), "--dry-run"],
+        out = subprocess.run([sys.executable, "-u", str(Path(__file__).resolve()), "--dry-run"]
+                             + (["--batch", args.batch] if args.batch else []),
                              capture_output=True, text=True, cwd=str(HERE)).stdout
         planned = [ln.strip() for ln in out.splitlines()
                    if ln.startswith(("  applied -> ", "  follow-up -> "))]
@@ -459,6 +494,129 @@ def main() -> int:
                                    "company": company, "to": to, "kind": kind, "result": result})
         del state["recent"][60:]
 
+    grades = set(cfg["grades"])
+    excluded = [x for x in cfg["exclude_companies"] if x.strip()] + ([me["company"]] if me["company"] else [])
+    sent_addrs = {s["to"].lower() for s in state["sent"].values()}
+    sent_domains = {domain_of(s["to"]) for s in state["sent"].values()} - FREE_MAIL
+    sent_names = {frozenset(core_tokens(s["company"])) for s in state["sent"].values()}
+    skipped = {"excluded": 0, "already": 0, "off-stack": 0, "too senior": 0, "no mail server": 0}
+
+    # Companies you have already reached yourself, in either list. A company can
+    # sit in Pipeline (scraped lead) and Directory (researched) at once, so a
+    # "Called" in Directory must also stop the Pipeline lead, and the reverse.
+    UNTOUCHED = ("none", "scheduled")
+    touched_names, touched_domains = set(), set()
+    for c in companies:
+        if (c.get("stage") or "none") not in UNTOUCHED:
+            if core_tokens(c["n"]):
+                touched_names.add(frozenset(core_tokens(c["n"])))
+            touched_domains.update(domain_of(a) for a in (c.get("hr") or []) + (c.get("em") or []))
+    for d in directory:
+        if (d.get("status") or "none") not in UNTOUCHED:
+            if core_tokens(d["name"]):
+                touched_names.add(frozenset(core_tokens(d["name"])))
+            touched_domains.update(domain_of(e["e"]) for e in d.get("emails") or [])
+    touched_domains -= FREE_MAIL
+
+    def contacted_already(name, to):
+        return (bool(core_tokens(name)) and frozenset(core_tokens(name)) in touched_names) \
+            or domain_of(to) in touched_domains
+
+    def already_sent(key, name, to):
+        return (key in state["sent"] or to.lower() in sent_addrs or domain_of(to) in sent_domains
+                or bool(core_tokens(name) and frozenset(core_tokens(name)) in sent_names))
+
+    def apply_to(key, name, to, job, lead=None, entry=None):
+        """Email one application and mark it. `lead` is a Pipeline company,
+        `entry` a Directory one. False means stop: Gmail refused the login."""
+        nonlocal sent_now
+        subject = fill(cfg["subject"], me, name, job)
+        body = fill(cfg["body"], me, name, job, proof=cfg.get("proof", "")) + "\n\n" + signature(me)
+        if test:
+            body = f"[TEST — would go to {to}]\n\n" + body
+        dest = gmail if test else to
+        try:
+            msg_id = mailer.send(dest, subject, body, me["name"], resume)
+        except Exception as e:
+            errors.append(f"send to {name} failed: {e}")
+            record(name, dest, "application", f"failed: {e}")
+            return not isinstance(e, smtplib.SMTPAuthenticationError)
+        sent_now += 1
+        applied_names.append(f"{name}" + (f" — {job}" if job else ""))
+        sent_addrs.add(to.lower())
+        if domain_of(to) not in FREE_MAIL:
+            sent_domains.add(domain_of(to))
+        sent_names.add(frozenset(core_tokens(name)))
+        record(name, dest, "application" + (" (test)" if test else ""),
+               "sent" + (" (dry run)" if args.dry_run else ""))
+        log(f"  applied -> {name} <{dest}>" + (f"  [{job}]" if job else ""))
+        if not args.dry_run:
+            dash.notify("applied", f"Emailed {name}" + (" (test)" if test else ""),
+                        (f"{job}\n" if job else "") + f"to {dest}", "/")
+        if not test:
+            at = dt.datetime.now().isoformat(timespec="seconds")
+            state["sent"][key] = {"company": name, "to": to, "job": job, "subject": subject,
+                                  "msg_id": msg_id, "at": at}
+            src = lead or {}
+            log_remote("add", {"company_id": key, "company": name, "to_addr": to, "subject": subject,
+                               "subject_tpl": cfg["subject"], "msg_id": msg_id, "job": job,
+                               "tab": src.get("tab", "") or (entry or {}).get("region", ""),
+                               "grade": src.get("grade", ""),
+                               "platform": src.get("platform", "") or ("directory" if entry else ""),
+                               "sent_at": iso_to_ms(at)})
+            if not args.dry_run:
+                try:
+                    if lead is not None:
+                        note = (lead.get("stage_note") or "").rstrip()
+                        note = (note + "\n" if note else "") + f"Auto-applied {now:%d %b} to {to}."
+                        dash.put(f"/api/progress/{quote(key, safe='')}", {"stage": "contacted", "note": note})
+                    else:
+                        note = (entry.get("my_note") or "").rstrip()
+                        note = (note + "\n" if note else "") + f"Auto-applied {now:%d %b} to {to}."
+                        dash.put(f"/api/directory/{quote(entry['id'], safe='')}", {"status": "contacted", "note": note})
+                except Exception as e:
+                    errors.append(f"sent to {name} but could not mark it as emailed: {e}")
+        if not args.dry_run:
+            state["days"][today] = used + sent_now
+            save_state(state)
+        pace()
+        return True
+
+    # ---- scheduled ------------------------------------------------------------
+    # "Scheduled" in Pipeline or Directory jumps the queue, oldest scheduling
+    # first. You chose these by hand, so the grade, job-title and experience
+    # gates are skipped; the safety checks are not. The HR address is used when
+    # there is one, otherwise the first generic address.
+    scheduled = []
+    for c in companies:
+        if c.get("stage") == "scheduled":
+            to = ((c.get("hr") or []) + (c.get("em") or []) or [""])[0].strip()
+            scheduled.append((c.get("stage_at") or 0, c["id"], c["n"], to,
+                              ((c.get("job") or {}).get("t") or "").strip(), c, None))
+    for d in directory:
+        if d.get("status") == "scheduled":
+            ems = sorted(d.get("emails") or [], key=lambda e: e.get("t") != "hr")
+            scheduled.append((d.get("status_at") or 0, "dir:" + d["id"], d["name"],
+                              (ems[0]["e"] if ems else "").strip(), (d.get("job_title") or "").strip(), None, d))
+    scheduled.sort(key=lambda x: x[0])
+    sched_sent, sched_skipped = 0, {}
+    for _, key, name, to, job, lead, entry in scheduled:
+        if used + sent_now >= limit:
+            break
+        why = ("no email address" if not to
+               else "already emailed" if already_sent(key, name, to)
+               else "you already contacted it" if contacted_already(name, to)
+               else "excluded company" if is_excluded(name, to, excluded)
+               else "no mail server" if not mx.has_mx(domain_of(to))
+               else "")
+        if why:
+            sched_skipped[why] = sched_skipped.get(why, 0) + 1
+            log(f"  skip scheduled {name}: {why}")
+            continue
+        if not apply_to(key, name, to, job, lead=lead, entry=entry):
+            break
+        sched_sent += 1
+
     # ---- follow-ups -----------------------------------------------------------
     followups = 0
     if cfg["followup_enabled"]:
@@ -470,9 +628,14 @@ def main() -> int:
                 continue
             if now - dt.datetime.fromisoformat(s["at"]) < due_after:
                 continue
-            c = by_id.get(cid)
-            if not c or c.get("stage") != "contacted":
-                continue                      # you moved it yourself — leave it alone
+            if cid.startswith("dir:"):
+                d = dir_by_key.get(cid)
+                if not d or d.get("status") != "contacted":
+                    continue                  # you moved it yourself — leave it alone
+            else:
+                c = by_id.get(cid)
+                if not c or c.get("stage") != "contacted":
+                    continue                  # you moved it yourself — leave it alone
             body = fill(cfg["followup_body"], me, s["company"], s.get("job", ""),
                         dt.datetime.fromisoformat(s["at"]).strftime("%d %b"), cfg.get("proof", ""))
             subject = "Re: " + s["subject"]
@@ -499,12 +662,6 @@ def main() -> int:
             pace()
 
     # ---- new applications -----------------------------------------------------
-    grades = set(cfg["grades"])
-    excluded = [x for x in cfg["exclude_companies"] if x.strip()] + ([me["company"]] if me["company"] else [])
-    sent_addrs = {s["to"].lower() for s in state["sent"].values()}
-    sent_domains = {domain_of(s["to"]) for s in state["sent"].values()} - FREE_MAIL
-    sent_names = {frozenset(core_tokens(s["company"])) for s in state["sent"].values()}
-    skipped = {"excluded": 0, "already": 0, "off-stack": 0, "too senior": 0, "no mail server": 0}
     # Grading alone let a "Rust Systems Engineer" through as grade A. Nothing is
     # sent unattended unless the job title names one of the profile's must-have
     # skills; a lead with no title at all is still allowed (the grade vouches for it).
@@ -525,8 +682,7 @@ def main() -> int:
             break
         cid, name = c["id"], c["n"]
         to = c["hr"][0].strip()
-        if cid in state["sent"] or to.lower() in sent_addrs or domain_of(to) in sent_domains \
-                or (core_tokens(name) and frozenset(core_tokens(name)) in sent_names):
+        if already_sent(cid, name, to) or contacted_already(name, to):
             skipped["already"] += 1
             continue
         hit = is_excluded(name, to, excluded)
@@ -554,59 +710,21 @@ def main() -> int:
             skipped["no mail server"] += 1
             log(f"  skip {name}: {domain_of(to)} cannot receive mail")
             continue
-        subject = fill(cfg["subject"], me, name, job)
-        body = fill(cfg["body"], me, name, job, proof=cfg.get("proof", "")) + "\n\n" + signature(me)
-        if test:
-            body = f"[TEST — would go to {to}]\n\n" + body
-        dest = gmail if test else to
-        try:
-            msg_id = mailer.send(dest, subject, body, me["name"], resume)
-        except Exception as e:
-            errors.append(f"send to {name} failed: {e}")
-            record(name, dest, "application", f"failed: {e}")
-            if isinstance(e, smtplib.SMTPAuthenticationError):
-                break                         # wrong app password — every send would fail
-            continue
-        sent_now += 1
-        applied_names.append(f"{name}" + (f" — {job}" if job else ""))
-        sent_addrs.add(to.lower())
-        if domain_of(to) not in FREE_MAIL:
-            sent_domains.add(domain_of(to))
-        sent_names.add(frozenset(core_tokens(name)))
-        record(name, dest, "application" + (" (test)" if test else ""),
-               "sent" + (" (dry run)" if args.dry_run else ""))
-        log(f"  applied -> {name} <{dest}>" + (f"  [{job}]" if job else ""))
-        if not args.dry_run:
-            dash.notify("applied", f"Emailed {name}" + (" (test)" if test else ""),
-                        (f"{job}\n" if job else "") + f"to {dest}", "/")
-        if not test:
-            at = dt.datetime.now().isoformat(timespec="seconds")
-            state["sent"][cid] = {"company": name, "to": to, "job": job, "subject": subject,
-                                  "msg_id": msg_id, "at": at}
-            log_remote("add", {"company_id": cid, "company": name, "to_addr": to, "subject": subject,
-                               "subject_tpl": cfg["subject"], "msg_id": msg_id, "job": job,
-                               "tab": c.get("tab", ""), "grade": c.get("grade", ""),
-                               "platform": c.get("platform", ""), "sent_at": iso_to_ms(at)})
-            if not args.dry_run:
-                note = (c.get("stage_note") or "").rstrip()
-                note = (note + "\n" if note else "") + f"Auto-applied {now:%d %b} to {to}."
-                try:
-                    dash.put(f"/api/progress/{quote(cid, safe='')}", {"stage": "contacted", "note": note})
-                except Exception as e:
-                    errors.append(f"sent to {name} but could not mark Contacted: {e}")
-        if not args.dry_run:
-            state["days"][today] = used + sent_now
-            save_state(state)
-        pace()
+        if not apply_to(cid, name, to, job, lead=c):
+            break                             # wrong app password — every send would fail
 
     mailer.close()
     if not args.dry_run:
         state["days"][today] = used + sent_now
         save_state(state)
     mode = "dry run" if args.dry_run else ("test mode" if test else "live")
-    waiting = len(queue) - len(applied_names)
+    waiting = len(queue) - (len(applied_names) - sched_sent)
     skips = ", ".join(f"{v} {k}" for k, v in skipped.items() if v)
-    text = (f"{mode}: sent {sent_now} ({used + sent_now}/{limit} today), "
+    sched = (f"scheduled: {sched_sent} sent of {len(scheduled)}"
+             + (" (skipped " + ", ".join(f"{v} {k}" for k, v in sched_skipped.items()) + ")" if sched_skipped else "")
+             + "; ") if scheduled else ""
+    text = (f"{mode}{' ' + args.batch + ' batch' if args.batch else ''}: {sched}sent {sent_now} "
+            f"({used + sent_now}/{limit} today), "
             f"{waiting} grade-{cfg['grades']} leads still waiting" + (f", skipped {skips}" if skips else ""))
     if applied_names and not args.dry_run:
         dash.notify("applied",

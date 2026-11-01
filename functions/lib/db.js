@@ -125,7 +125,8 @@ export function defaultSection(tab, { hr = [], wa = [], job = null } = {}) {
 }
 
 export const VALID_TABS = ["blr", "pune", "lko", "noida", "rem", "oth"];
-export const VALID_STAGES = ["none", "contacted", "replied", "interviewing", "offer", "rejected"];
+// "scheduled" = queued for the next auto-apply run; not yet contacted.
+export const VALID_STAGES = ["none", "scheduled", "contacted", "replied", "interviewing", "offer", "rejected"];
 
 /** Tag 1 — provenance. Ordered best-evidence first. */
 export const VALID_PLATFORMS = [

@@ -259,6 +259,8 @@
   .sb.on[data-s="offer"]{background:var(--green)}
   .sb.on[data-s="rejected"]{background:var(--red)}
   .sb.on[data-s="none"]{background:var(--mute)}
+  .sb.on[data-s="scheduled"]{background:var(--accent)}
+  .co[data-stage="scheduled"]{border-left-color:var(--accent)}
   .fu{color:var(--amber);font-size:11px;font-weight:600;
     background:var(--panel3);border-radius:99px;padding:1px 8px}
 
@@ -498,8 +500,8 @@
     .co{padding:var(--s3);margin-bottom:var(--s2);border-radius:var(--r1)}
     .co .nm{font-size:14px}
     .co .acts{gap:6px;margin-top:var(--s2)}
-    /* Six stages as an even 3×2 grid of real tap targets, not a ragged wrap. */
-    .stagebar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;
+    /* Seven stages as a 4+3 grid of real tap targets, not a ragged wrap. */
+    .stagebar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
       margin-top:var(--s2);padding-top:var(--s2)}
     .sb{height:32px;padding:0 4px;font-size:11.5px}
 
@@ -551,7 +553,7 @@
 
     /* bottom bar: four tabs + More */
     nav{grid-template-columns:repeat(5,minmax(0,1fr));padding:6px 4px}
-    .nav[data-k="events"],.nav[data-k="profile"],.nav[data-k="data"]{display:none}
+    .nav[data-k="analytics"],.nav[data-k="events"],.nav[data-k="profile"],.nav[data-k="data"]{display:none}
     .nav-more{display:flex}
     .nav{height:56px;font-size:11px}
 
@@ -630,6 +632,98 @@
     .stagebar{gap:8px;margin-top:14px;padding-top:14px}
     .sb{height:38px;border-radius:10px;font-size:12.5px}
     .co textarea.f{min-height:72px!important;margin-top:14px!important}
+  }
+
+  /* ================= directory (hand-researched Lucknow / NCR lists) ================= */
+  .dir-sum{display:flex;gap:var(--s2);flex-wrap:wrap;font-size:12.5px;color:var(--mute)}
+  .dir-sum b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .dir-sum span{background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
+  .vt{display:inline-block;font-size:10.5px;font-weight:600;border-radius:5px;padding:1px 5px;
+    margin-left:4px;vertical-align:1px;background:var(--panel3);color:var(--mute);white-space:nowrap}
+  .vt.V{background:var(--accent-soft);color:var(--accent-ink)}
+  .vt.Dir{color:var(--amber)}
+  .dir-warn{color:var(--red);font-size:12px;margin-top:2px}
+  .dir-hire{color:var(--green);font-weight:600}
+  .dir-hire.weak{color:var(--amber)}
+  .dir-st{height:30px;border:1px solid var(--line);border-radius:99px;background:var(--panel);
+    color:var(--ink);font-size:12.5px;padding:0 8px;max-width:100%}
+  .dir-st[data-st="contacted"],.dir-st[data-st="called"],.dir-st[data-st="whatsapp"],.dir-st[data-st="emailed"]{border-color:var(--blue);color:var(--blue)}
+  .dir-st[data-st="replied"]{border-color:var(--violet);color:var(--violet)}
+  .dir-st[data-st="interview"]{border-color:var(--green);color:var(--green);font-weight:600}
+  .dir-st[data-st="no"]{color:var(--faint)}
+  .dir-st[data-st="scheduled"]{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft);font-weight:600}
+  .dir-more-bd{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s4) var(--s5);
+    font-size:12.5px;color:var(--mute);line-height:1.5}
+  .dir-more-bd > div{min-width:0;overflow-wrap:anywhere}
+  .dir-more-bd b{display:block;color:var(--faint);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.06em;font-weight:620;margin-bottom:2px}
+  .dir-more-bd .full{grid-column:1/-1}
+  .dir-more-bd a{color:var(--blue)}
+  .dir-links{display:flex;gap:6px;flex-wrap:wrap}
+  .dir-note{width:100%;height:64px;min-height:44px;resize:vertical}
+  .dir-showmore{display:block;margin:var(--s3) auto 0}
+
+  /* desktop: a table, HR phone first */
+  .dir-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r2);background:var(--panel);
+    max-width:100%}
+  .dir-tbl{width:100%;min-width:940px;table-layout:fixed;border-collapse:separate;border-spacing:0;
+    font-size:12.5px}
+  .dir-tbl td,.dir-tbl th{overflow-wrap:anywhere}
+  .dir-tbl th{position:sticky;top:0;background:var(--panel2);text-align:left;font-weight:620;
+    font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
+    padding:9px 10px;border-bottom:1px solid var(--line)}
+  .dir-tbl td{padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+  .dir-tbl tr.r:nth-of-type(4n+1) td{background:var(--panel2)}
+  .dir-tbl tr.r[data-st="interview"] td:first-child{box-shadow:inset 3px 0 var(--green)}
+  .dir-tbl tr.r[data-st="replied"] td:first-child{box-shadow:inset 3px 0 var(--violet)}
+  .dir-tbl tr.r[data-st="scheduled"] td:first-child{box-shadow:inset 3px 0 var(--accent)}
+  .dir-tbl tr.r[data-st="contacted"] td:first-child,.dir-tbl tr.r[data-st="called"] td:first-child,.dir-tbl tr.r[data-st="whatsapp"] td:first-child,
+  .dir-tbl tr.r[data-st="emailed"] td:first-child{box-shadow:inset 3px 0 var(--blue)}
+  .dir-tbl .num{font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink);text-decoration:none}
+  .dir-tbl .num:hover{color:var(--accent)}
+  .dir-tbl .acts{display:flex;gap:4px;margin-top:5px}
+  .dir-tbl .btn.xs{height:24px;padding:0 8px;font-size:11.5px}
+  .dir-tbl .co-n{font-weight:620;color:var(--ink)}
+  .dir-tbl .sub{color:var(--faint);font-size:11.5px}
+  .dir-tbl tr.more td{background:var(--panel2);padding:var(--s4) var(--s5);border-bottom:1px solid var(--line)}
+  .dir-tbl .dir-st{width:100%}
+  .dir-tbl .em{word-break:break-all}
+  .dir-cards{display:none}
+
+  /* phone: cards, number first, big buttons */
+  @media(max-width:860px){
+    .dir-scroll{display:none}
+    .dir-cards{display:block}
+    .dc{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line);
+      border-radius:16px;margin-bottom:10px;overflow:hidden}
+    .dc[data-st="contacted"],.dc[data-st="called"],.dc[data-st="whatsapp"],.dc[data-st="emailed"]{border-left-color:var(--blue)}
+    .dc[data-st="replied"]{border-left-color:var(--violet)}
+    .dc[data-st="interview"]{border-left-color:var(--green)}
+    .dc[data-st="scheduled"]{border-left-color:var(--accent)}
+    .dc[data-st="no"]{opacity:.65}
+    .dc-ph{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--line2)}
+    .dc-ph .num{flex:1;min-width:0;font-size:17px;font-weight:700;letter-spacing:-.01em;
+      color:var(--ink);text-decoration:none;font-variant-numeric:tabular-nums;line-height:1.25}
+    .dc-ph .num small{display:block;font-size:11px;font-weight:500;color:var(--faint);letter-spacing:0}
+    .dc-ph .num.none{color:var(--faint);font-size:14px;font-weight:500}
+    .dc-ph .btn{height:42px;min-width:56px;padding:0 14px;border-radius:12px;font-size:14px}
+    .dc-bd{padding:10px 14px 12px}
+    .dc-nm{font-size:15.5px;font-weight:650;line-height:1.3}
+    .dc-nm .rk{font-size:11.5px;font-weight:500;color:var(--faint);margin-left:6px}
+    .dc-em{display:flex;align-items:center;gap:8px;margin-top:8px}
+    .dc-em a.e{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      font-size:13.5px;color:var(--blue);text-decoration:none}
+    .dc-em .btn{height:34px;border-radius:10px}
+    .dc-meta{font-size:12.5px;color:var(--mute);margin-top:6px;line-height:1.45}
+    .dc-row{display:flex;gap:8px;align-items:center;margin-top:10px}
+    .dc-row .dir-st{flex:1;height:38px;font-size:14px;border-radius:10px}
+    .dc-row .btn{height:38px;border-radius:10px}
+    .dc details{border-top:1px solid var(--line2)}
+    .dc summary{list-style:none;padding:10px 14px;font-size:13px;color:var(--mute);cursor:pointer}
+    .dc summary::-webkit-details-marker{display:none}
+    .dc details[open] summary{color:var(--ink)}
+    .dc .dir-more-bd{padding:0 14px 14px;grid-template-columns:1fr;gap:10px;font-size:13.5px}
+    .dir-sum{font-size:12.5px}
   }
 </style>
 </head>
@@ -738,12 +832,12 @@ const SECTIONS = {
          ["o3","Email / LinkedIn only"]]
 };
 const STAGES = [
-  ["none","Not contacted"],["contacted","Contacted"],["replied","Replied"],
+  ["none","Not contacted"],["scheduled","Scheduled"],["contacted","Contacted"],["replied","Replied"],
   ["interviewing","Interviewing"],["offer","Offer"],["rejected","Rejected"]
 ];
 const STAGE_LABEL = Object.fromEntries(STAGES);
 const STAGE_VAR = { contacted:"--blue", replied:"--violet", interviewing:"--amber",
-                    offer:"--green", rejected:"--red", none:"--mute" };
+                    offer:"--green", rejected:"--red", none:"--mute", scheduled:"--accent" };
 
 /* --- the two tags -------------------------------------------------------- */
 /* Tag 1: where the lead came from. Ordered best-evidence first — an ATS board
@@ -801,7 +895,7 @@ let SHARE_RETRY = false;   // the share reached the server, not sw.js — ask to
   const q = new URLSearchParams(location.search);
   const v = q.get("view");
   SHARE_RETRY = q.get("shared") === "retry";
-  if(v && ["overview","pipeline","analytics","message","events","profile","data","add"].includes(v)){
+  if(v && ["overview","pipeline","directory","analytics","message","events","profile","data","add"].includes(v)){
     VIEW = v;
     if(v !== "add") try{ localStorage.setItem("jo:view", v); }catch{}
     history.replaceState(null, "", location.pathname);
@@ -835,6 +929,7 @@ const FILTERS = [
   ["AB",   "A or B",         (c) => c.grade === "A" || c.grade === "B"],
   ["ats",  "Company board",  (c) => ["ats","direct"].includes(PLATFORM_TIER[c.platform])],
   ["todo", "Not contacted",  (c) => c.stage === "none"],
+  ["sched","Scheduled",      (c) => c.stage === "scheduled"],
   ["fu",   "Needs follow-up",(c) => needsFollowUp(c)],
   ["hr",   "Has HR inbox",   (c) => (c.hr||[]).length > 0],
   ["wa",   "Has WhatsApp",   (c) => (c.wa||[]).length > 0],
@@ -980,6 +1075,7 @@ async function loadAll(){
 const VIEWS = [
   ["overview",  "Overview",  "▦"],
   ["pipeline",  "Pipeline",  "☰"],
+  ["directory", "Directory", "☎"],
   ["analytics", "Analytics", "◔"],
   ["message",   "Message",   "✎"],
   ["events",    "Events",    "⚡"],
@@ -991,6 +1087,7 @@ const VIEWS = [
 const NAV_SVG = {
   overview:  '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
   pipeline:  '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  directory: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
   analytics: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   message:   '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   events:    '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
@@ -999,7 +1096,9 @@ const NAV_SVG = {
 };
 const navSvg = (key) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_SVG[key] || ""}</svg>`;
 
-const MORE_VIEWS = ["events", "profile", "data"];
+/* Directory took Analytics' slot on the phone bar: it is a working screen
+   (call, message, mark), Analytics is read now and then. */
+const MORE_VIEWS = ["analytics", "events", "profile", "data"];
 
 /** Phone "More" sheet: the views that don't fit the bottom bar, plus theme and
  *  sign-out, which leave the phone's top bar for just the title and the bell. */
@@ -1389,7 +1488,7 @@ const OPEN_CO = new Set();   // lead cards whose phone drawer is open
 
 function viewPipeline(host){
   const inTab = COMPANIES.filter(c => TAB === ALL_TAB || c.tab === TAB);
-  const done = inTab.filter(c => c.stage !== "none").length;
+  const done = inTab.filter(c => c.stage !== "none" && c.stage !== "scheduled").length;
 
   host.append(pageHead("Pipeline",
     "Every company, grouped by how good the contact route is. Work top-down — a real HR inbox beats a sales WhatsApp line."));
@@ -1684,6 +1783,11 @@ function companyCard(c){
 }
 
 async function setStage(c, stage){
+  /* Scheduled means "auto-apply emails this next" — pointless without an address. */
+  if(stage === "scheduled" && !(c.hr || []).length && !(c.em || []).length){
+    toast("No email for "+c.n+" — auto-apply can't send to it. Call or WhatsApp instead.");
+    return;
+  }
   const prev = c.stage;
   c.stage = stage;
   c.stage_at = Date.now();
@@ -2262,7 +2366,9 @@ const AUTO_DEFAULTS = {
   enabled: false,
   test_mode: true,          // everything goes to your own inbox until you switch this off
   grades: "AB",
-  daily_limit: 30,
+  daily_limit: 50,          // = batch_morning + batch_evening, kept for older senders
+  batch_morning: 35,        // the 11:00 run
+  batch_evening: 15,        // the 18:00 run
   followup_enabled: true,
   followup_days: 3,
   window_start: 10,
@@ -2280,9 +2386,8 @@ const AUTO_DEFAULTS = {
 };
 
 /* When auto-apply next gets a chance to send. The sender is not a dashboard job:
-   apply.cmd on the PC runs it from two Task Scheduler tasks, 11:00 and 18:00
-   (PC time, IST). An estimate — it can't see the PC — that skips runs outside
-   the send window or on a day that is not ticked. */
+   cron on the VPS runs it at 11:00 (morning batch) and 18:00 (evening batch) IST.
+   An estimate — it can't see the server — that skips days that are not ticked. */
 const APPLY_RUN_HOURS = [11, 18];
 function nextAutoRun(cfg){
   if(!cfg.enabled) return null;
@@ -2292,7 +2397,7 @@ function nextAutoRun(cfg){
     for(const h of APPLY_RUN_HOURS){
       const t = new Date(now); t.setDate(t.getDate() + d); t.setHours(h, 0, 0, 0);
       const wd = (t.getDay() + 6) % 7;                     // Mon=0, like Python
-      if(t > now && days.includes(wd) && h >= cfg.window_start && h < cfg.window_end) return t;
+      if(t > now && days.includes(wd)) return t;
     }
   }
   return null;
@@ -2343,14 +2448,14 @@ function paintAutoApply(host, cfg, status){
           <option value="A"${cfg.grades === "A" ? " selected" : ""}>A only</option>
           <option value="AB"${cfg.grades === "AB" ? " selected" : ""}>A and B</option>
         </select></div>
-      <div class="field"><label class="lb" for="aa-limit">Emails per day (max 50)</label>
-        <input class="f" id="aa-limit" type="number" min="1" max="50" value="${Number(cfg.daily_limit) || 30}"></div>
+      <div class="field"><label class="lb" for="aa-bm">Emails at 11 AM / 6 PM (max 50 a day)</label>
+        <div class="row tight"><input class="f w-num" id="aa-bm" type="number" min="0" max="50" value="${Number(cfg.batch_morning ?? 35)}">
+        <span class="hint">+</span><input class="f w-num" id="aa-be" type="number" min="0" max="50" value="${Number(cfg.batch_evening ?? 15)}"></div></div>
       <div class="field"><label class="lb" for="aa-fudays">Follow-up after (days)</label>
         <div class="row tight"><input type="checkbox" id="aa-fu" ${cfg.followup_enabled ? "checked" : ""} aria-label="Follow-up on">
         <input class="f w-num" id="aa-fudays" type="number" min="1" max="30" value="${Number(cfg.followup_days) || 3}"></div></div>
-      <div class="field"><label class="lb" for="aa-ws">Send between (hours, 24h)</label>
-        <div class="row tight"><input class="f w-num" id="aa-ws" type="number" min="0" max="23" value="${Number(cfg.window_start)}">
-        <span class="hint">to</span><input class="f w-num" id="aa-we" type="number" min="1" max="24" value="${Number(cfg.window_end)}"></div></div>
+      <div class="field"><label class="lb">Order</label>
+        <div class="hint">Companies you set to <b>Scheduled</b> (Pipeline or Directory) go first, then follow-ups, then new A/B leads.</div></div>
       <div class="field"><label class="lb">Send on</label>
         <div class="row tight" id="aa-days">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d, i) =>
           `<label class="row tight"><input type="checkbox" value="${i}" ${(cfg.days || [0,1,2,3,4]).includes(i) ? "checked" : ""}> ${d}</label>`).join(" ")}</div></div>
@@ -2381,6 +2486,8 @@ function paintAutoApply(host, cfg, status){
         <td>${esc(r.result)}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
 
   const num = (id, lo, hi, dflt) => Math.max(lo, Math.min(hi, Math.round(Number($(id).value)) || dflt));
+  const batchNum = (id, dflt) => { const v = $(id).value.trim(); const n = Math.round(Number(v));
+    return v === "" || !Number.isFinite(n) ? dflt : Math.max(0, Math.min(50, n)); };
   // Rough length of the email as HR will see it: proof points filled in, other
   // tokens counted as one word each. Under ~120 words reads well on a phone.
   const words = () => {
@@ -2396,7 +2503,7 @@ function paintAutoApply(host, cfg, status){
   const flip = async (key, box) => {
     const next = { ...cfg, [key]: box.checked };
     if(next.enabled && !next.test_mode && !confirm(
-      `Auto-apply will email up to ${next.daily_limit} companies a day from your Gmail, without asking first. Turn it on?`)){
+      `Auto-apply will email up to ${next.daily_limit} companies a day (${next.batch_morning} at 11 AM, ${next.batch_evening} at 6 PM) from your Gmail, without asking first. Turn it on?`)){
       box.checked = !box.checked; return;
     }
     try{
@@ -2413,11 +2520,11 @@ function paintAutoApply(host, cfg, status){
       enabled: $("aa-on").checked,
       test_mode: $("aa-test").checked,
       grades: $("aa-grades").value,
-      daily_limit: num("aa-limit", 1, 50, 30),
+      // 0 is a real answer here ("no evening batch"), so not num(), which reads 0 as blank.
+      batch_morning: batchNum("aa-bm", 35),
+      batch_evening: batchNum("aa-be", 15),
       followup_enabled: $("aa-fu").checked,
       followup_days: num("aa-fudays", 1, 30, 3),
-      window_start: num("aa-ws", 0, 23, 9),
-      window_end: num("aa-we", 1, 24, 19),
       days: [...document.querySelectorAll("#aa-days input:checked")].map(x => Number(x.value)),
       body: $("aa-body").value.trim() || AUTO_DEFAULTS.body,
       proof: $("aa-proof").value.trim(),
@@ -2425,7 +2532,8 @@ function paintAutoApply(host, cfg, status){
       subject: $("aa-subj").value.trim() || AUTO_DEFAULTS.subject,
       followup_body: $("aa-fubody").value.trim() || AUTO_DEFAULTS.followup_body,
     };
-    if(next.window_end <= next.window_start){ toast("Send window: the end hour must be after the start"); return; }
+    next.daily_limit = next.batch_morning + next.batch_evening;
+    if(next.daily_limit > 50){ toast("11 AM + 6 PM can be at most 50 emails a day"); return; }
     if(!next.days.length){ toast("Pick at least one day to send on"); return; }
     if(next.enabled && !next.test_mode && !confirm(
       `Auto-apply will email up to ${next.daily_limit} companies a day from your Gmail, without asking first. Turn it on?`)) return;
@@ -3598,8 +3706,387 @@ function showDraft(company, channel, res){
 }
 
 /* -------------------------------------------------------------- render -- */
+/* ------------------------------------------------------------ directory -- */
+/* The hand-researched lists (migration 014): Lucknow ranked by size, reputation
+   and fit; Noida / Greater Noida / Delhi as a contact list. Shared data, but the
+   status and note on each company are this profile's own. Loaded lazily — the
+   rest of the dashboard never needs them. */
+const DIR_REGIONS = [["lko","Lucknow"],["ncr","NCR"]];
+const DIR_CITIES = ["Noida","Greater Noida","Delhi"];
+const DIR_STATUS = [["none","Not contacted"],["scheduled","Scheduled (auto-apply)"],["contacted","Contacted"],["called","Called"],["whatsapp","WhatsApp sent"],
+  ["emailed","Emailed"],["replied","Replied"],["interview","Interview"],["no","Not interested"]];
+const DIR_FILTERS = [["hr","HR contact"],["phone","Has phone"],["hiring","Hiring now"],
+  ["todo","Not contacted"],["sched","Scheduled"],["done","Contacted"]];
+const dirContacted = (d) => d.status !== "none" && d.status !== "scheduled";
+const DIR_PAGE = 40;
+const DIR = { lko: null, ncr: null };
+let DIR_REGION = localStorage.getItem("jo:dir") || "lko";
+let DIR_CITY = "all";
+let DIR_Q = "";
+let DIR_SHOW = DIR_PAGE;
+let DIR_SORT = localStorage.getItem("jo:dirsort") || "contact";
+const dirActive = new Set();
+
+/* "Best contact first": a verified HR/WhatsApp line beats any verified phone,
+   which beats a verified HR inbox, then unverified routes, then nothing. Ties
+   keep the list's own order (Lucknow rank, NCR city order). */
+function dirContactRank(d){
+  const V = (x) => x.s === "V";
+  if(d.phones.some(p => V(p) && (p.l === "HR" || p.l === "WhatsApp"))) return 0;
+  if(d.phones.some(V)) return 1;
+  if(d.emails.some(e => V(e) && e.t === "hr")) return 2;
+  if(d.phones.length) return 3;
+  if(d.emails.length) return 4;
+  return 5;
+}
+
+const dirPhone = (d) => d.phones[0] || null;
+const dirHrEmail = (d) => d.emails.find(e => e.t === "hr") || null;
+const telHref = (n) => "tel:" + String(n).replace(/[^\d+]/g, "");
+const waHref = (n, text) => "https://wa.me/" + String(n).replace(/\D/g, "") + "?text=" + encodeURIComponent(text);
+const mailHref = (e, name) => "mailto:" + e + "?subject=" + encodeURIComponent(fill(TPLS.email.subject || SUBJECT, name)) +
+  "&body=" + encodeURIComponent(fill(TPLS.email.body, name));
+const vTag = (s) => `<span class="vt ${esc(s)}" title="${s === "V" ? "Verified on official site" : s === "Dir" ? "Directory only" : "From your PDF, unverified"}">${esc(s)}</span>`;
+const inPipeline = (d) => COMPANIES.some(c => c.n.toLowerCase() === d.name.toLowerCase());
+
+async function loadDirectory(region){
+  if(DIR[region]) return DIR[region];
+  DIR[region] = await api("/api/directory?region=" + region);
+  return DIR[region];
+}
+
+function dirPasses(d){
+  if(DIR_REGION === "ncr" && DIR_CITY !== "all" && d.city !== DIR_CITY) return false;
+  if(dirActive.has("hr") && !dirHrEmail(d) && !d.phones.some(p => p.l === "HR" || p.l === "WhatsApp")) return false;
+  if(dirActive.has("phone") && !d.phones.length) return false;
+  if(dirActive.has("hiring") && !d.hiring) return false;
+  if(dirActive.has("todo") && d.status !== "none") return false;
+  if(dirActive.has("sched") && d.status !== "scheduled") return false;
+  if(dirActive.has("done") && !dirContacted(d)) return false;
+  if(DIR_Q){
+    const q = DIR_Q.toLowerCase();
+    const hay = [d.name, d.area, d.address, d.city, d.stack, d.my_note,
+      ...d.emails.map(e => e.e), ...d.phones.map(p => p.n)].join(" ").toLowerCase();
+    if(!hay.includes(q) && !hay.replace(/\D/g, "").includes(q.replace(/\D/g, "") || "\u0000")) return false;
+  }
+  return true;
+}
+
+async function setDirStatus(d, status, quiet){
+  const prev = d.status;
+  if(status === "scheduled" && !d.emails.length){
+    document.querySelectorAll(`select.dir-st[data-for="${CSS.escape(d.id)}"]`).forEach(s => { s.value = prev; s.dataset.st = prev; });
+    toast("No email for " + d.name + " — auto-apply can't send to it. Call or WhatsApp instead.");
+    return;
+  }
+  d.status = status;
+  document.querySelectorAll(`[data-dir="${CSS.escape(d.id)}"]`).forEach(el => el.dataset.st = status);
+  document.querySelectorAll(`select.dir-st[data-for="${CSS.escape(d.id)}"]`).forEach(s => { s.value = status; s.dataset.st = status; });
+  try{
+    await api("/api/directory/" + encodeURIComponent(d.id), { method: "PUT", body: JSON.stringify({ status }) });
+    if(!quiet) toast("Saved: " + (DIR_STATUS.find(s => s[0] === status) || [, status])[1]);
+  }catch(e){
+    d.status = prev;
+    document.querySelectorAll(`[data-dir="${CSS.escape(d.id)}"]`).forEach(el => el.dataset.st = prev);
+    document.querySelectorAll(`select.dir-st[data-for="${CSS.escape(d.id)}"]`).forEach(s => { s.value = prev; s.dataset.st = prev; });
+    toast(e.message);
+  }
+}
+
+/* Calling, messaging or emailing from the list marks it — but only the first
+   step: a company already at "Replied" must not drop back to "Called". */
+function autoStatus(d, status){
+  if(d.status !== "none") return;
+  setDirStatus(d, status, true);
+  toast("Marked as " + (DIR_STATUS.find(s => s[0] === status) || [, status])[1] + " — change it anytime");
+}
+
+function dirStatusSelect(d){
+  const s = document.createElement("select");
+  s.className = "dir-st";
+  s.dataset.for = d.id;
+  s.dataset.st = d.status;
+  s.setAttribute("aria-label", "Status for " + d.name);
+  s.innerHTML = DIR_STATUS.map(([k, l]) => `<option value="${k}"${k === d.status ? " selected" : ""}>${esc(l)}</option>`).join("");
+  s.addEventListener("change", () => setDirStatus(d, s.value));
+  return s;
+}
+
+function dirContactLinks(d, el){
+  el.querySelectorAll("[data-act]").forEach(a => a.addEventListener("click", () =>
+    autoStatus(d, a.dataset.act)));
+}
+
+async function addDirToPipeline(d, btn){
+  btn.disabled = true;
+  const mobiles = d.phones.filter(p => p.m).map(p => "91" + p.n.replace(/\D/g, "").slice(-10));
+  const land = (d.phones.find(p => !p.m) || {}).n || "";
+  try{
+    await api("/api/companies", { method: "POST", body: JSON.stringify({
+      name: d.name, tab: d.region === "lko" ? "lko" : "noida",
+      hr: d.emails.filter(e => e.t === "hr").map(e => e.e),
+      em: d.emails.filter(e => e.t !== "hr").map(e => e.e),
+      wa: mobiles, land, li: d.linkedin || "",
+      job_url: d.job_url || "", job_title: d.job_title || "",
+      note: [d.area, d.city].filter(Boolean).join(", ") + " — added from Directory",
+      source: "manual", platform: "manual",
+    }) });
+    COMPANIES = await api("/api/companies");
+    btn.textContent = "In Pipeline ✓";
+    toast(d.name + " added to Pipeline");
+  }catch(e){
+    btn.disabled = false;
+    toast(e.message);
+  }
+}
+
+/* The "More" body — identical on card and table. */
+function dirMoreBody(d){
+  const b = document.createElement("div");
+  b.className = "dir-more-bd";
+  const f = (label, html, full) => html ? `<div${full ? ' class="full"' : ""}><b>${label}</b>${html}</div>` : "";
+  const links = [
+    d.job_url && `<a class="btn sm" href="${esc(d.job_url)}" target="_blank" rel="noopener">Job post</a>`,
+    d.careers_url && `<a class="btn sm" href="${esc(d.careers_url)}" target="_blank" rel="noopener">Careers</a>`,
+    d.website && `<a class="btn sm" href="${esc(d.website)}" target="_blank" rel="noopener">Website</a>`,
+    d.linkedin && `<a class="btn sm" href="${esc(d.linkedin)}" target="_blank" rel="noopener">LinkedIn</a>`,
+  ].filter(Boolean).join("");
+  b.innerHTML =
+    f("All phones", d.phones.map(p => `<a href="${telHref(p.n)}">${esc(p.n)}</a>${vTag(p.s)}${p.l ? ` <span class="sub">${esc(p.l)}</span>` : ""}`).join("<br>")) +
+    f("All emails", d.emails.map(e => `<a href="${mailHref(e.e, d.name)}" data-act="emailed">${esc(e.e)}</a>${vTag(e.s)}${e.t === "gen" ? ' <span class="sub">generic</span>' : ""}`).join("<br>")) +
+    f("Address", esc(d.address)) +
+    f("Company", [d.kind, d.size].filter(Boolean).map(esc).join(" · ")) +
+    f("Rank / score", d.region === "lko" ? `#${d.rank} · ${esc(d.tier)} · ${d.score ?? "–"}/100` : "") +
+    f("Rating", esc(d.rating)) +
+    f("Tech stack", esc(d.stack) + (d.mern ? ` <span class="sub">(MERN: ${esc(d.mern)})</span>` : "")) +
+    f("Opening", d.hiring_label ? esc(d.hiring_label) + (d.job_title ? " — " + esc(d.job_title) : "") : "") +
+    f("Links", links ? `<div class="dir-links">${links}</div>` : "", true) +
+    f("Research notes", esc(d.notes), true) +
+    `<div class="full"><b>My note</b><textarea class="f dir-note" placeholder="e.g. spoke to HR, call back Monday">${esc(d.my_note)}</textarea></div>` +
+    `<div class="full dir-links"><button class="btn sm primary dir-add"${inPipeline(d) ? " disabled" : ""}>${inPipeline(d) ? "In Pipeline ✓" : "+ Add to Pipeline"}</button>` +
+    `<span class="sub">Contacts checked ${esc(d.checked || "–")} · ${esc(d.contact_status)}</span></div>`;
+  const ta = b.querySelector(".dir-note");
+  let t = null;
+  ta.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(async () => {
+      d.my_note = ta.value;
+      try{ await api("/api/directory/" + encodeURIComponent(d.id), { method: "PUT", body: JSON.stringify({ note: ta.value }) }); }
+      catch(e){ toast(e.message); }
+    }, 700);
+  });
+  b.querySelector(".dir-add").addEventListener("click", (e) => addDirToPipeline(d, e.currentTarget));
+  dirContactLinks(d, b);
+  return b;
+}
+
+function dirHiringHtml(d){
+  if(!d.hiring_label) return "";
+  const cls = d.hiring ? "dir-hire" : "dir-hire weak";
+  const txt = esc(d.hiring_label);
+  return d.job_url ? `<a class="${cls}" href="${esc(d.job_url)}" target="_blank" rel="noopener">${txt} ↗</a>` : `<span class="${cls}">${txt}</span>`;
+}
+
+/* Phone card: the number to call is the first thing on it. */
+function dirCard(d){
+  const c = document.createElement("div");
+  c.className = "dc";
+  c.dataset.dir = d.id;
+  c.dataset.st = d.status;
+  const p = dirPhone(d);
+  const hr = dirHrEmail(d) || d.emails[0];
+  const wa = fill(TPLS.whatsapp.body, d.name);
+  c.innerHTML =
+    `<div class="dc-ph">` + (p
+      ? `<a class="num" href="${telHref(p.n)}" data-act="called">${esc(p.n)}<small>${esc(p.l || "Phone")} · ${p.s === "V" ? "verified" : p.s === "Dir" ? "directory" : "from PDF"}</small></a>` +
+        `<a class="btn primary" href="${telHref(p.n)}" data-act="called" aria-label="Call">Call</a>` +
+        (p.m ? `<a class="btn wa" href="${waHref(p.n, wa)}" target="_blank" rel="noopener" data-act="whatsapp" aria-label="WhatsApp">WA</a>` : "")
+      : `<span class="num none">No phone found — use email or careers page</span>`) +
+    `</div><div class="dc-bd">` +
+      `<div class="dc-nm">${esc(d.name)}<span class="rk">${d.region === "lko" ? "#" + d.rank + " · " + esc(d.tier) : esc(d.city)}</span></div>` +
+      (d.warning ? `<div class="dir-warn">⚠ ${esc(d.warning)}</div>` : "") +
+      (hr ? `<div class="dc-em"><a class="e" href="${mailHref(hr.e, d.name)}" data-act="emailed">${esc(hr.e)}</a>${vTag(hr.s)}` +
+            `<a class="btn sm${hr.t === "hr" ? " hr" : ""}" href="${mailHref(hr.e, d.name)}" data-act="emailed">Email</a></div>` : "") +
+      `<div class="dc-meta">${esc([d.area, d.region === "ncr" ? "" : d.city].filter(Boolean).join(", ") || "Location not found")}` +
+        (dirHiringHtml(d) ? " · " + dirHiringHtml(d) : "") + `</div>` +
+      `<div class="dc-row"></div>` +
+    `</div><details><summary>More: address, all contacts, links, note</summary></details>`;
+  c.querySelector(".dc-row").append(dirStatusSelect(d));
+  const det = c.querySelector("details");
+  det.addEventListener("toggle", () => { if(det.open && !det.querySelector(".dir-more-bd")) det.append(dirMoreBody(d)); });
+  dirContactLinks(d, c.querySelector(".dc-ph"));
+  dirContactLinks(d, c.querySelector(".dc-bd"));
+  return c;
+}
+
+/* Desktop row: HR phone | company | HR email | location | hiring | status | more. */
+function dirRow(d, tbody){
+  const tr = document.createElement("tr");
+  tr.className = "r";
+  tr.dataset.dir = d.id;
+  tr.dataset.st = d.status;
+  const p = dirPhone(d);
+  const hr = dirHrEmail(d) || d.emails[0];
+  const wa = fill(TPLS.whatsapp.body, d.name);
+  tr.innerHTML =
+    `<td>` + (p
+      ? `<a class="num" href="${telHref(p.n)}" data-act="called">${esc(p.n)}</a>${vTag(p.s)}<div class="sub">${esc(p.l || "Phone")}</div>` +
+        (p.m ? `<div class="acts"><a class="btn xs wa" href="${waHref(p.n, wa)}" target="_blank" rel="noopener" data-act="whatsapp">WhatsApp</a></div>` : "")
+      : `<span class="sub">Not found</span>`) + `</td>` +
+    `<td><span class="co-n">${esc(d.name)}</span><div class="sub">${d.region === "lko" ? "#" + d.rank + " · " + esc(d.tier) + (d.score != null ? " · " + d.score : "") : esc(d.kind || "")}</div>` +
+      (d.warning ? `<div class="dir-warn">⚠ ${esc(d.warning)}</div>` : "") + `</td>` +
+    `<td class="em">` + (hr ? `<a href="${mailHref(hr.e, d.name)}" data-act="emailed"${hr.t === "hr" ? ' style="font-weight:600"' : ""}>${esc(hr.e)}</a>${vTag(hr.s)}${hr.t === "gen" ? '<div class="sub">generic</div>' : ""}` : `<span class="sub">Not found</span>`) + `</td>` +
+    `<td>${esc(d.area || "–")}<div class="sub">${esc(d.city)}</div></td>` +
+    `<td>${dirHiringHtml(d) || '<span class="sub">–</span>'}</td>` +
+    `<td class="stc"></td>` +
+    `<td><button class="btn xs ghost">More</button></td>`;
+  tr.querySelector(".stc").append(dirStatusSelect(d));
+  dirContactLinks(d, tr);
+  tbody.append(tr);
+  tr.querySelector("button").addEventListener("click", (e) => {
+    const nx = tr.nextElementSibling;
+    if(nx && nx.classList.contains("more")){ nx.remove(); e.currentTarget.textContent = "More"; return; }
+    const m = document.createElement("tr");
+    m.className = "more";
+    const td = document.createElement("td");
+    td.colSpan = 7;
+    td.append(dirMoreBody(d));
+    m.append(td);
+    tr.after(m);
+    e.currentTarget.textContent = "Less";
+  });
+}
+
+function viewDirectory(host){
+  host.append(pageHead("Directory",
+    "Researched IT companies with public HR contacts. Call or WhatsApp from the list — the status updates itself, and stays private to you."));
+  const s = stack();
+  host.append(s);
+
+  const regions = document.createElement("div");
+  regions.className = "tabs";
+  for(const [k, l] of DIR_REGIONS){
+    const b = document.createElement("button");
+    b.className = "tab" + (k === DIR_REGION ? " on" : "");
+    b.innerHTML = `${esc(l)}<span class="n">${DIR[k] ? DIR[k].length : ""}</span>`;
+    b.addEventListener("click", () => {
+      DIR_REGION = k; DIR_CITY = "all"; DIR_SHOW = DIR_PAGE;
+      localStorage.setItem("jo:dir", k); render();
+    });
+    regions.append(b);
+  }
+  s.append(regions);
+
+  const list = DIR[DIR_REGION];
+  if(!list){
+    const l = document.createElement("div");
+    l.className = "loading";
+    l.textContent = "Loading companies…";
+    s.append(l);
+    loadDirectory(DIR_REGION).then(() => { if(VIEW === "directory") render(); })
+      .catch(e => { l.textContent = "Couldn't load the directory: " + e.message; });
+    return;
+  }
+
+  const bar = document.createElement("div");
+  bar.className = "toolbar";
+  bar.innerHTML = `<input class="search" id="dq" type="search" placeholder="Search company, area, email or number…" value="${esc(DIR_Q)}">` +
+    `<select class="sortsel" id="dsort" aria-label="Sort">` +
+    `<option value="contact"${DIR_SORT === "contact" ? " selected" : ""}>Best contact first</option>` +
+    `<option value="rank"${DIR_SORT === "rank" ? " selected" : ""}>${DIR_REGION === "lko" ? "Rank (size + fit)" : "List order"}</option></select>`;
+  s.append(bar);
+  bar.querySelector("#dsort").addEventListener("change", (e) => {
+    DIR_SORT = e.target.value; localStorage.setItem("jo:dirsort", DIR_SORT); DIR_SHOW = DIR_PAGE; renderList();
+  });
+  const qEl = bar.querySelector("#dq");
+  let qt = null;
+  qEl.addEventListener("input", () => {
+    clearTimeout(qt);
+    qt = setTimeout(() => { DIR_Q = qEl.value.trim(); DIR_SHOW = DIR_PAGE; renderList(); }, 200);
+  });
+
+  if(DIR_REGION === "ncr"){
+    const cities = document.createElement("div");
+    cities.className = "chips scrollrow";
+    for(const c of ["all", ...DIR_CITIES]){
+      const b = document.createElement("button");
+      b.className = "chip" + (c === DIR_CITY ? " on" : "");
+      b.textContent = (c === "all" ? "All cities" : c) + " " + (c === "all" ? list.length : list.filter(d => d.city === c).length);
+      b.addEventListener("click", () => { DIR_CITY = c; DIR_SHOW = DIR_PAGE; render(); });
+      cities.append(b);
+    }
+    s.append(cities);
+  }
+
+  const chips = document.createElement("div");
+  chips.className = "chips scrollrow";
+  for(const [k, l] of DIR_FILTERS){
+    const b = document.createElement("button");
+    b.className = "chip" + (dirActive.has(k) ? " on" : "");
+    b.textContent = l;
+    b.setAttribute("aria-pressed", String(dirActive.has(k)));
+    b.addEventListener("click", () => {
+      if(dirActive.has(k)) dirActive.delete(k);
+      else{
+        dirActive.add(k);
+        if(k === "todo") dirActive.delete("done");
+        if(k === "done") dirActive.delete("todo");
+      }
+      DIR_SHOW = DIR_PAGE; render();
+    });
+    chips.append(b);
+  }
+  s.append(chips);
+
+  const sum = document.createElement("div");
+  sum.className = "dir-sum";
+  s.append(sum);
+  const out = document.createElement("div");
+  s.append(out);
+
+  function renderList(){
+    const rows = list.filter(dirPasses);
+    if(DIR_SORT === "contact") rows.sort((a, b) => dirContactRank(a) - dirContactRank(b) || a.sort - b.sort);
+    const contacted = list.filter(dirContacted).length;
+    const queued = list.filter(d => d.status === "scheduled").length;
+    const replied = list.filter(d => d.status === "replied" || d.status === "interview").length;
+    sum.innerHTML = `<span><b>${rows.length}</b> shown</span>` +
+      (queued ? `<span><b>${queued}</b> scheduled</span>` : "") + `<span><b>${contacted}</b> contacted</span>` +
+      `<span><b>${replied}</b> replied</span><span><b>${list.filter(d => d.hiring).length}</b> hiring now</span>`;
+    out.textContent = "";
+    if(!rows.length){
+      out.innerHTML = `<div class="empty"><b>No matches</b>Nothing here fits this search and filter combination.</div>`;
+      return;
+    }
+    const page = rows.slice(0, DIR_SHOW);
+    const tbl = document.createElement("table");
+    tbl.className = "dir-tbl";
+    tbl.innerHTML = `<colgroup><col style="width:168px"><col><col style="width:22%"><col style="width:15%"><col style="width:14%"><col style="width:148px"><col style="width:64px"></colgroup>` +
+      `<thead><tr><th>HR phone</th><th>Company</th><th>HR email</th><th>Location</th><th>Opening</th><th>My status</th><th></th></tr></thead>`;
+    const tb = document.createElement("tbody");
+    tbl.append(tb);
+    const cards = document.createElement("div");
+    cards.className = "dir-cards";
+    /* Both are built, CSS shows one by width — a rotate or window resize then
+       needs no re-render and keeps open drawers and typed notes. */
+    for(const d of page){ dirRow(d, tb); cards.append(dirCard(d)); }
+    const scroll = document.createElement("div");
+    scroll.className = "dir-scroll";
+    scroll.append(tbl);
+    out.append(scroll, cards);
+    if(rows.length > DIR_SHOW){
+      const more = document.createElement("button");
+      more.className = "btn dir-showmore";
+      more.textContent = `Show ${Math.min(DIR_PAGE, rows.length - DIR_SHOW)} more (${rows.length - DIR_SHOW} left)`;
+      more.addEventListener("click", () => { DIR_SHOW += DIR_PAGE; renderList(); });
+      out.append(more);
+    }
+  }
+  renderList();
+}
+
 const TITLES = {
-  overview:"Overview", pipeline:"Pipeline", analytics:"Analytics",
+  overview:"Overview", pipeline:"Pipeline", directory:"Directory", analytics:"Analytics",
   message:"Message", events:"Events", profile:"Profile",
   data:"Import & export", add:"Add company",
 };
@@ -3613,6 +4100,7 @@ function render(){
   try{
     if(VIEW === "overview")       viewOverview(host);
     else if(VIEW === "pipeline")  viewPipeline(host);
+    else if(VIEW === "directory") viewDirectory(host);
     else if(VIEW === "analytics") viewAnalytics(host);
     else if(VIEW === "message")   viewMessage(host);
     else if(VIEW === "events")    viewEvents(host);

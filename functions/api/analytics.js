@@ -36,7 +36,7 @@ export async function onRequestGet(context) {
     env.DB.prepare(`
       SELECT c.tab,
         COUNT(*) AS total,
-        SUM(CASE WHEN COALESCE(p.stage,'none') != 'none' THEN 1 ELSE 0 END) AS contacted,
+        SUM(CASE WHEN COALESCE(p.stage,'none') NOT IN ('none','scheduled') THEN 1 ELSE 0 END) AS contacted,
         SUM(CASE WHEN p.stage = 'replied' THEN 1 ELSE 0 END) AS replied,
         SUM(CASE WHEN p.stage = 'interviewing' THEN 1 ELSE 0 END) AS interviewing,
         SUM(CASE WHEN p.stage = 'offer' THEN 1 ELSE 0 END) AS offer,
@@ -74,7 +74,7 @@ export async function onRequestGet(context) {
     env.DB.prepare(`
       SELECT c.grade,
         COUNT(*) AS total,
-        SUM(CASE WHEN COALESCE(p.stage,'none') != 'none' THEN 1 ELSE 0 END) AS contacted,
+        SUM(CASE WHEN COALESCE(p.stage,'none') NOT IN ('none','scheduled') THEN 1 ELSE 0 END) AS contacted,
         SUM(CASE WHEN p.stage IN ('replied','interviewing','offer') THEN 1 ELSE 0 END) AS responded
       FROM companies c LEFT JOIN progress p ON ${PROGRESS_ON_PROFILE}
       WHERE c.grade != '' AND ${VISIBLE_TO_PROFILE}
@@ -88,12 +88,13 @@ export async function onRequestGet(context) {
     `).bind(pid).all(),
   ]);
 
-  const totals = { companies: 0, none: 0, contacted: 0, replied: 0, interviewing: 0, offer: 0, rejected: 0 };
+  const totals = { companies: 0, none: 0, scheduled: 0, contacted: 0, replied: 0, interviewing: 0, offer: 0, rejected: 0 };
   for (const row of byStage.results) {
     totals.companies += row.count;
     totals[row.stage] = (totals[row.stage] || 0) + row.count;
   }
-  const everContacted = totals.companies - totals.none;
+  // "scheduled" is queued for auto-apply, not yet sent — it counts as not contacted.
+  const everContacted = totals.companies - totals.none - totals.scheduled;
   const responded = totals.replied + totals.interviewing + totals.offer;
   const responseRate = everContacted > 0 ? Math.round((responded / everContacted) * 1000) / 10 : 0;
 

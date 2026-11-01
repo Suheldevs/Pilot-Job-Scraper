@@ -158,7 +158,7 @@ jsFiles.push(path.join(ROOT, "sw.js"));
 for (const f of jsFiles) {
   // Module mode: Pages Functions are ES modules, and a plain --check let a raw
   // newline inside a string literal through — a Worker that then fails to load.
-  const r = spawnSync(process.execPath, ["--experimental-default-type=module", "--check", f], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, ["--check", f], { encoding: "utf8" });
   if (r.status !== 0) die(`${path.relative(ROOT, f)} failed to parse:\n${r.stderr}`);
 }
 ok(`${jsFiles.length} function files parse cleanly`);
@@ -169,7 +169,7 @@ const inline = /<script>([\s\S]*?)<\/script>/.exec(html);
 if (!inline) die("index.html has no inline <script> — that can't be right");
 const tmpJs = path.join(os.tmpdir(), `pilot-inline-${process.pid}.js`);
 fs.writeFileSync(tmpJs, inline[1]);
-const chk = spawnSync(process.execPath, ["--experimental-default-type=module", "--check", tmpJs], { encoding: "utf8" });
+const chk = spawnSync(process.execPath, ["--check", tmpJs], { encoding: "utf8" });
 fs.rmSync(tmpJs, { force: true });
 if (chk.status !== 0) die(`index.html inline script failed to parse:\n${chk.stderr}`);
 ok("index.html inline script parses cleanly");

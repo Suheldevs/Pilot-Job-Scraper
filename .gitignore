@@ -23,3 +23,4 @@ resume.pdf
 .firecrawl-state.json
 .firecrawl-state.tmp
 .vapid.json
+migrations/015-directory-seed.sql

@@ -100,7 +100,8 @@ def main() -> int:
         step("notify", str(HERE / "notify.py"), "error", f"Scrape run failed (exit {rc})",
              "push.py stopped early - see scrape.log on the PC.")
     step("website emails", str(HERE / "enrich_contacts.py"))
-    step("auto-apply", str(HERE / "auto_apply.py"))
+    # Auto-apply no longer runs here: cron runs it at 11:00 and 18:00 IST with
+    # --batch morning / --batch evening, so a scrape never spends the day's quota.
 
     log(f"======== [{time.strftime('%Y-%m-%d %H:%M:%S')}] scrape end (exit {rc}) ========")
     trim_log()
