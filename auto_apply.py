@@ -31,11 +31,14 @@ One run, in order:
   4. follow-up — one per company, threaded under the first email, once
                  `followup_days` have passed with no reply and the lead is still
                  at Contacted (moving it yourself cancels the follow-up).
-  5. new       — grade-matched leads at "Not contacted" with an HR inbox, newest
-                 job first, until the daily limit is used up.
+  5. new       — grade-matched leads (A/B first, then C) at "Not contacted" with an
+                 HR inbox, newest job first, until the daily target is used up.
+  6. directory — still short of the target: Directory companies at "Not contacted",
+                 best verified contact first (HR/careers, then any), set to "Emailed".
 
 Guard rails, enforced here rather than trusted to the settings form:
-  * hard cap of 50 emails a day whatever the setting says, sends spaced 45-120s;
+  * a daily target (default 20) counting emails you sent by hand too, hard cap of 50
+    whatever the setting says, sends spaced 45-120s;
   * only inside the send window, on the chosen weekdays;
   * never a second first-email to the same company, address or email domain;
   * never a company you already contacted yourself: any stage past "Not
@@ -76,10 +79,10 @@ HEADS_UP_SECONDS = 120          # pause between the heads-up push and the first 
 DEFAULTS = {
     "enabled": False,
     "test_mode": True,
-    "grades": "AB",
-    "daily_limit": 50,
-    "batch_morning": 35,        # the 11:00 run
-    "batch_evening": 15,        # the 18:00 run
+    "grades": "ABC",
+    "daily_limit": 50,          # old setting, superseded by daily_target
+    "daily_target": 20,         # emails a day, automatic + sent by hand; the sender tops up to this
+    "directory_fill": True,     # when the pipeline cannot reach the target, email Directory companies
     "followup_enabled": True,
     "followup_days": 3,
     "window_start": 10,
@@ -404,6 +407,28 @@ def main() -> int:
     test = bool(cfg["test_mode"])
     mailer = Mailer(gmail, gpw, args.dry_run)
 
+    # ---- status reconcile -----------------------------------------------------
+    # Every email this sender has sent must show as contacted, so it is never
+    # applied to again by hand. The status is normally set at send time; this
+    # repairs any that failed then (network blip) or were reset since.
+    if not test and not args.dry_run:
+        for key, sent in state["sent"].items():
+            if sent.get("test"):
+                continue
+            try:
+                if key.startswith("dir:"):
+                    d = dir_by_key.get(key)
+                    if d and d.get("status") in ("none", "scheduled"):
+                        dash.put(f"/api/directory/{quote(d['id'], safe='')}", {"status": "emailed"})
+                        log(f"  status repaired: {d['name']} -> emailed")
+                else:
+                    c = by_id.get(key)
+                    if c and c.get("stage") in ("none", "scheduled"):
+                        dash.put(f"/api/progress/{quote(key, safe='')}", {"stage": "contacted"})
+                        log(f"  status repaired: {c['n']} -> contacted")
+            except Exception as e:
+                errors.append(f"could not repair status for {sent.get('company')}: {e}")
+
     # ---- replies & bounces ----------------------------------------------------
     if not test and not args.preview:
         found, err = check_replies(gmail, gpw, state)
@@ -433,12 +458,21 @@ def main() -> int:
 
     # ---- send window & quota --------------------------------------------------
     used = state["days"].get(today, 0)
-    if args.batch:
-        # Each scheduled run sends its own share on top of what the day has used,
-        # so a short morning does not make the evening run send more than its batch.
-        limit = min(used + int(cfg.get(f"batch_{args.batch}") or 0), HARD_DAILY_CAP)
-    else:
-        limit = min(int(cfg["daily_limit"] or 0), HARD_DAILY_CAP)
+    # The daily target counts emails you sent yourself today too (a Directory company
+    # set to "Emailed", a Pipeline lead moved to "Contacted"), so the sender only
+    # makes up the difference. Anything this sender sent is excluded to avoid double counting.
+    day_start = dt.datetime.combine(now.date(), dt.time.min).timestamp() * 1000
+    manual_today = sum(1 for c in companies
+                       if c.get("stage") == "contacted" and (c.get("stage_at") or 0) >= day_start
+                       and c["id"] not in state["sent"])
+    manual_today += sum(1 for d in directory
+                        if d.get("status") == "emailed" and (d.get("status_at") or 0) >= day_start
+                        and "dir:" + d["id"] not in state["sent"])
+    target = min(int(cfg.get("daily_target") or 0), HARD_DAILY_CAP)
+    remaining = max(0, target - used - manual_today)
+    # Every run tries for the whole target: the morning run sends as much as it can
+    # find, and the evening run only tops up what is still missing.
+    limit = min(used + remaining, HARD_DAILY_CAP)
     if test:
         # Test mode records nothing as sent, so the same leads come round again
         # every run — a few samples in your inbox is the point, not a full day's quota.
@@ -573,7 +607,7 @@ def main() -> int:
                     else:
                         note = (entry.get("my_note") or "").rstrip()
                         note = (note + "\n" if note else "") + f"Auto-applied {now:%d %b} to {to}."
-                        dash.put(f"/api/directory/{quote(entry['id'], safe='')}", {"status": "contacted", "note": note})
+                        dash.put(f"/api/directory/{quote(entry['id'], safe='')}", {"status": "emailed", "note": note})
                 except Exception as e:
                     errors.append(f"sent to {name} but could not mark it as emailed: {e}")
         if not args.dry_run:
@@ -668,7 +702,8 @@ def main() -> int:
     # Generic titles ("Software Engineer", "SDE") name no stack at all, so they
     # pass; a title naming a different stack ("Backend Engineer (Rust)") does not.
     allow = me["must"] + ["software engineer", "software developer", "sde", "web developer",
-                          "application developer", "product engineer", "full stack", "full-stack"]
+                          "application developer", "product engineer", "full stack", "full-stack",
+                          "frontend", "front-end", "front end", "javascript", "web", "mobile"]
     stack_re = (re.compile(r"(?<![a-z0-9])(" + "|".join(re.escape(k.lower()) for k in allow) + r")(?![a-z0-9])")
                 if me["must"] else None)
 
@@ -676,7 +711,8 @@ def main() -> int:
     # and an old opening is often already filled. Score breaks ties.
     queue = sorted((c for c in companies
                     if c.get("grade") in grades and c.get("stage") == "none" and c.get("hr")),
-                   key=lambda c: (-(c.get("posted_at") or c.get("created_at") or 0), -(c.get("score") or 0)))
+                   key=lambda c: (c.get("grade") == "C",      # A and B first, C only to fill the target
+                                  -(c.get("posted_at") or c.get("created_at") or 0), -(c.get("score") or 0)))
     for c in queue:
         if used + sent_now >= limit:
             break
@@ -713,18 +749,59 @@ def main() -> int:
         if not apply_to(cid, name, to, job, lead=c):
             break                             # wrong app password — every send would fail
 
+    # ---- directory top-up ------------------------------------------------------
+    # Pipeline could not reach the target: fill from the Directory. Best contact
+    # first — a verified HR/careers inbox, then any verified one, then the rest.
+    # Generic addresses (info@, contact@) are allowed; the safety checks are not relaxed.
+    dir_sent = 0
+    if cfg.get("directory_fill", True) and used + sent_now < limit:
+        def pick_email(d):
+            ems = [e for e in d.get("emails") or [] if e.get("e")]
+            ems.sort(key=lambda e: (e.get("t") != "hr", e.get("s") != "V",
+                                    not re.search(r"career|hr|job|recruit|talent|hiring", e["e"].split("@")[0], re.I)))
+            return ems[0]["e"].strip() if ems else ""
+        def dir_rank(d):
+            ems = d.get("emails") or []
+            return (0 if any(e.get("t") == "hr" and e.get("s") == "V" for e in ems)
+                    else 1 if any(e.get("s") == "V" for e in ems) else 2, d.get("sort") or 0)
+        fill_q = sorted((d for d in directory if (d.get("status") or "none") == "none"
+                         and not d.get("warning") and d.get("emails")), key=dir_rank)
+        for d in fill_q:
+            if used + sent_now >= limit:
+                break
+            to = pick_email(d)
+            key, name = "dir:" + d["id"], d["name"]
+            why = ("no email address" if not to
+                   else "already emailed" if already_sent(key, name, to) or contacted_already(name, to)
+                   else "excluded company" if is_excluded(name, to, excluded)
+                   else "no mail server" if not mx.has_mx(domain_of(to))
+                   else "")
+            if why:
+                continue
+            job = (d.get("job_title") or "").strip()
+            # A Directory posting for a lead/manager role or "5+ years" is not the role
+            # being applied for; use the profile's own headline instead.
+            m = EXPERIENCE_RE.search(job)
+            if (not job or len(job) > 60 or re.search(r"\b(lead|senior|sr\.?|manager|architect|principal|head|director)\b", job, re.I)
+                    or (m and me["exp_max"] is not None and float(m.group(1)) > me["exp_max"])):
+                job = me["role"]
+            if not apply_to(key, name, to, job, entry=d):
+                break
+            dir_sent += 1
+
     mailer.close()
     if not args.dry_run:
         state["days"][today] = used + sent_now
         save_state(state)
     mode = "dry run" if args.dry_run else ("test mode" if test else "live")
-    waiting = len(queue) - (len(applied_names) - sched_sent)
+    waiting = max(0, len(queue) - (len(applied_names) - sched_sent - dir_sent))
     skips = ", ".join(f"{v} {k}" for k, v in skipped.items() if v)
     sched = (f"scheduled: {sched_sent} sent of {len(scheduled)}"
              + (" (skipped " + ", ".join(f"{v} {k}" for k, v in sched_skipped.items()) + ")" if sched_skipped else "")
              + "; ") if scheduled else ""
     text = (f"{mode}{' ' + args.batch + ' batch' if args.batch else ''}: {sched}sent {sent_now} "
-            f"({used + sent_now}/{limit} today), "
+            f"({used + sent_now} auto + {manual_today} manual / {target} target today"
+            f"{'; ' + str(dir_sent) + ' from Directory' if dir_sent else ''}), "
             f"{waiting} grade-{cfg['grades']} leads still waiting" + (f", skipped {skips}" if skips else ""))
     if applied_names and not args.dry_run:
         dash.notify("applied",

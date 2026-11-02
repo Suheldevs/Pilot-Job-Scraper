@@ -177,6 +177,7 @@
   .tile .k{font-size:11.5px;color:var(--mute);font-weight:560;letter-spacing:.01em}
   .tile .v{font-size:28px;font-weight:660;letter-spacing:-.03em;margin-top:6px;
     font-variant-numeric:tabular-nums;line-height:1.05}
+  .tile.tile-ok .v{color:var(--green);font-size:22px;margin-top:10px}
   .tile .m{font-size:11.5px;color:var(--faint);margin-top:5px}
 
   /* ================= charts ================= */
@@ -666,9 +667,11 @@
   /* desktop: a table, HR phone first */
   .dir-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r2);background:var(--panel);
     max-width:100%}
-  .dir-tbl{width:100%;min-width:940px;table-layout:fixed;border-collapse:separate;border-spacing:0;
+  .dir-tbl{width:100%;min-width:1060px;table-layout:fixed;border-collapse:separate;border-spacing:0;
     font-size:12.5px}
-  .dir-tbl td,.dir-tbl th{overflow-wrap:anywhere}
+  /* global td/th are nowrap; here a long name or email must wrap inside its own column */
+  .dir-tbl td,.dir-tbl th{white-space:normal;overflow-wrap:anywhere;min-width:0;overflow:hidden}
+  .dir-tbl th{white-space:nowrap}
   .dir-tbl th{position:sticky;top:0;background:var(--panel2);text-align:left;font-weight:620;
     font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
     padding:9px 10px;border-bottom:1px solid var(--line)}
@@ -688,6 +691,7 @@
   .dir-tbl tr.more td{background:var(--panel2);padding:var(--s4) var(--s5);border-bottom:1px solid var(--line)}
   .dir-tbl .dir-st{width:100%}
   .dir-tbl .em{word-break:break-all}
+  .dir-tbl .dir-st{min-width:0}
   .dir-cards{display:none}
 
   /* phone: cards, number first, big buttons */
@@ -1267,38 +1271,89 @@ function funnelRows(){
 }
 
 /* ------------------------------------------------------------ overview --- */
-function viewOverview(host){
-  const t = STATS.totals;
-  const contacted = t.companies - t.none;
-  const fu = COMPANIES.filter(needsFollowUp).length;
+/* Directory status -> pipeline stage, so both lists can be counted as one. */
+const DIR_STAGE = { none:"none", scheduled:"scheduled", contacted:"contacted", called:"contacted",
+  whatsapp:"contacted", emailed:"contacted", replied:"replied", interview:"interviewing", no:"rejected" };
 
+function viewOverview(host){
   host.append(pageHead("Overview",
-    "Where the whole pipeline stands right now — across every city you're tracking."));
+    "Pipeline and Directory together — every company you're tracking, however you reached it."));
 
   const s = stack();
+  const mount = document.createElement("div");
+  mount.className = "loading";
+  mount.textContent = "Loading overview…";
+  s.append(mount);
+  host.append(s);
+
+  (async () => {
+    let dirs = [], sendLog = [];
+    try{
+      const lists = await Promise.all(DIR_REGIONS.map(([k]) => loadDirectory(k)));
+      dirs = lists.flat();
+    }catch(e){ /* directory unavailable: show the pipeline on its own */ }
+    try{ sendLog = await api("/api/apply-log"); }catch(e){ /* optional */ }
+    if(VIEW !== "overview") return;
+    mount.remove();
+    paintOverview(s, dirs, sendLog);
+  })();
+}
+
+function paintOverview(s, dirs, sendLog){
+  const t = STATS.totals;
+  // A directory company already in the pipeline is counted there, once.
+  const dirOnly = dirs.filter(d => !inPipeline(d));
+  const stageCounts = Object.fromEntries(STAGES.map(([k]) => [k, 0]));
+  for(const c of COMPANIES) stageCounts[c.stage] = (stageCounts[c.stage] || 0) + 1;
+  for(const d of dirOnly){ const k = DIR_STAGE[d.status] || "none"; stageCounts[k]++; }
+
+  const total = COMPANIES.length + dirOnly.length;
+  const worked = total - stageCounts.none - stageCounts.scheduled;
+  const replied = stageCounts.replied + stageCounts.interviewing + stageCounts.offer;
+  const fu = COMPANIES.filter(needsFollowUp).length;
+  const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "0%";
 
   const tiles = document.createElement("div");
   tiles.className = "grid g4";
   tiles.append(
-    tile("Companies", t.companies, `across ${STATS.by_tab.length} cities`),
-    tile("Contacted", contacted, `${t.none} still to reach`),
-    tile("Response rate", STATS.response_rate + "%", `${t.replied + t.interviewing + t.offer} replied or better`),
+    tile("Companies", total, `${COMPANIES.length} pipeline · ${dirOnly.length} directory`),
+    tile("Contacted", worked, `${stageCounts.none} still to reach` + (stageCounts.scheduled ? ` · ${stageCounts.scheduled} scheduled` : "")),
+    tile("Response rate", pct(replied, worked), `${replied} replied or better`),
     tile("Need follow-up", fu, "contacted 7+ days ago"),
   );
   s.append(tiles);
 
+  // How they were reached. Directory statuses record the channel; auto-apply
+  // emails come from the send log; WhatsApp "reachable" counts every company
+  // with a WhatsApp number on file, so you can see what is left to message.
+  const dc = (k) => dirs.filter(d => d.status === k).length;
+  const waReachable = COMPANIES.filter(c => (c.wa || []).length).length + dirOnly.filter(d => d.phones.some(p => p.m)).length;
+  const emailReachable = COMPANIES.filter(c => (c.hr || []).length || (c.em || []).length).length + dirOnly.filter(d => d.emails.length).length;
+  const wk = Date.now() - 7 * 86400000;
+  const ch = document.createElement("div");
+  ch.className = "grid g4";
+  ch.append(
+    tile("WhatsApp", "● Connected", `${dc("whatsapp")} sent · ${waReachable} reachable`),
+    tile("Email", sendLog.length + dc("emailed"), `${sendLog.length} by auto-apply · ${emailReachable} reachable`),
+    tile("Calls", dc("called"), "marked called in Directory"),
+    tile("Auto-apply, 7 days", sendLog.filter(r => r.sent_at > wk).length, `${sendLog.filter(r => r.replied_at).length} replied overall`),
+  );
+  ch.firstChild.classList.add("tile-ok");
+  s.append(ch);
+
   const two = document.createElement("div");
   two.className = "grid g2";
 
-  const f = panel("Pipeline funnel", t.companies + " total");
-  f.body.append(barChart(funnelRows()));
+  const f = panel("Pipeline funnel", total + " total");
+  f.body.append(barChart(STAGES.map(([k, label]) => ({ label, value: stageCounts[k] || 0, color: STAGE_VAR[k] }))));
   f.body.insertAdjacentHTML("beforeend",
-    `<p class="hint mt3">Every stage is named and counted — colour repeats the label, it never carries it alone.</p>`);
+    `<p class="hint mt3">Pipeline and Directory counted together; a company in both is counted once.</p>`);
 
-  const c = panel("By city");
-  c.body.append(barChart(TABS.map(([k,label]) => ({
-    label, value: STATS.by_tab.find(r => r.tab === k)?.total || 0,
-  }))));
+  const c = panel("By source", "where companies live");
+  const byTab = TABS.map(([k, label]) => ({ label, value: STATS.by_tab.find(r => r.tab === k)?.total || 0 }));
+  const dirRows = DIR_REGIONS.map(([k, label]) => ({ label: "Directory · " + label,
+    value: dirs.filter(d => d.region === k && !inPipeline(d)).length }));
+  c.body.append(barChart([...byTab, ...dirRows].filter(r => r.value)));
 
   two.append(f.card, c.card);
   s.append(two);
@@ -1306,8 +1361,6 @@ function viewOverview(host){
   const a = panel("Activity", "last 60 days");
   a.body.append(sparkChart(STATS.timeline));
   s.append(a.card);
-
-  host.append(s);
 }
 
 /* ----------------------------------------------------------- analytics --- */
@@ -2365,10 +2418,10 @@ function emailHistoryPanel(){
 const AUTO_DEFAULTS = {
   enabled: false,
   test_mode: true,          // everything goes to your own inbox until you switch this off
-  grades: "AB",
-  daily_limit: 50,          // = batch_morning + batch_evening, kept for older senders
-  batch_morning: 35,        // the 11:00 run
-  batch_evening: 15,        // the 18:00 run
+  grades: "ABC",            // A and B first; C only to reach the daily target
+  daily_limit: 50,          // old setting, superseded by daily_target
+  daily_target: 20,         // emails a day, automatic + sent by hand; the sender tops up to this
+  directory_fill: true,     // top up from Directory when the pipeline cannot reach the target
   followup_enabled: true,
   followup_days: 3,
   window_start: 10,
@@ -2447,10 +2500,12 @@ function paintAutoApply(host, cfg, status){
         <select class="f" id="aa-grades">
           <option value="A"${cfg.grades === "A" ? " selected" : ""}>A only</option>
           <option value="AB"${cfg.grades === "AB" ? " selected" : ""}>A and B</option>
+          <option value="ABC"${cfg.grades === "ABC" ? " selected" : ""}>A, B, then C</option>
         </select></div>
-      <div class="field"><label class="lb" for="aa-bm">Emails at 11 AM / 6 PM (max 50 a day)</label>
-        <div class="row tight"><input class="f w-num" id="aa-bm" type="number" min="0" max="50" value="${Number(cfg.batch_morning ?? 35)}">
-        <span class="hint">+</span><input class="f w-num" id="aa-be" type="number" min="0" max="50" value="${Number(cfg.batch_evening ?? 15)}"></div></div>
+      <div class="field"><label class="lb" for="aa-target">Daily target, auto + manual (max 50)</label>
+        <input class="f w-num" id="aa-target" type="number" min="1" max="50" value="${Number(cfg.daily_target) || 20}">
+        <label class="row tight mt2"><input type="checkbox" id="aa-dirfill" ${cfg.directory_fill !== false ? "checked" : ""}> Fill from Directory if short</label>
+        <p class="hint mt2">11 AM tries for the whole target; 6 PM only tops up what is missing. Emails you send yourself count.</p></div>
       <div class="field"><label class="lb" for="aa-fudays">Follow-up after (days)</label>
         <div class="row tight"><input type="checkbox" id="aa-fu" ${cfg.followup_enabled ? "checked" : ""} aria-label="Follow-up on">
         <input class="f w-num" id="aa-fudays" type="number" min="1" max="30" value="${Number(cfg.followup_days) || 3}"></div></div>
@@ -2503,7 +2558,7 @@ function paintAutoApply(host, cfg, status){
   const flip = async (key, box) => {
     const next = { ...cfg, [key]: box.checked };
     if(next.enabled && !next.test_mode && !confirm(
-      `Auto-apply will email up to ${next.daily_limit} companies a day (${next.batch_morning} at 11 AM, ${next.batch_evening} at 6 PM) from your Gmail, without asking first. Turn it on?`)){
+      `Auto-apply will email up to ${next.daily_target} companies a day from your Gmail, without asking first. Turn it on?`)){
       box.checked = !box.checked; return;
     }
     try{
@@ -2520,9 +2575,8 @@ function paintAutoApply(host, cfg, status){
       enabled: $("aa-on").checked,
       test_mode: $("aa-test").checked,
       grades: $("aa-grades").value,
-      // 0 is a real answer here ("no evening batch"), so not num(), which reads 0 as blank.
-      batch_morning: batchNum("aa-bm", 35),
-      batch_evening: batchNum("aa-be", 15),
+      daily_target: num("aa-target", 1, 50, 20),
+      directory_fill: $("aa-dirfill").checked,
       followup_enabled: $("aa-fu").checked,
       followup_days: num("aa-fudays", 1, 30, 3),
       days: [...document.querySelectorAll("#aa-days input:checked")].map(x => Number(x.value)),
@@ -2532,11 +2586,10 @@ function paintAutoApply(host, cfg, status){
       subject: $("aa-subj").value.trim() || AUTO_DEFAULTS.subject,
       followup_body: $("aa-fubody").value.trim() || AUTO_DEFAULTS.followup_body,
     };
-    next.daily_limit = next.batch_morning + next.batch_evening;
-    if(next.daily_limit > 50){ toast("11 AM + 6 PM can be at most 50 emails a day"); return; }
+    next.daily_limit = next.daily_target;
     if(!next.days.length){ toast("Pick at least one day to send on"); return; }
     if(next.enabled && !next.test_mode && !confirm(
-      `Auto-apply will email up to ${next.daily_limit} companies a day from your Gmail, without asking first. Turn it on?`)) return;
+      `Auto-apply will email up to ${next.daily_target} companies a day from your Gmail, without asking first. Turn it on?`)) return;
     try{
       await api("/api/settings/auto_apply", { method: "PUT", body: JSON.stringify({ value: JSON.stringify(next) }) });
       toast("Auto-apply settings saved");
@@ -4061,7 +4114,7 @@ function viewDirectory(host){
     const page = rows.slice(0, DIR_SHOW);
     const tbl = document.createElement("table");
     tbl.className = "dir-tbl";
-    tbl.innerHTML = `<colgroup><col style="width:168px"><col><col style="width:22%"><col style="width:15%"><col style="width:14%"><col style="width:148px"><col style="width:64px"></colgroup>` +
+    tbl.innerHTML = `<colgroup><col style="width:158px"><col style="width:210px"><col style="width:220px"><col style="width:150px"><col style="width:150px"><col style="width:150px"><col style="width:64px"></colgroup>` +
       `<thead><tr><th>HR phone</th><th>Company</th><th>HR email</th><th>Location</th><th>Opening</th><th>My status</th><th></th></tr></thead>`;
     const tb = document.createElement("tbody");
     tbl.append(tb);
