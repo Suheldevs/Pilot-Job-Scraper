@@ -68,6 +68,23 @@ def main() -> int:
     import os
     env = {**os.environ, **creds}
 
+    # Settings > Scraper off (or paused): do nothing that costs credits. That means
+    # push.py AND the Firecrawl website-email step. Reading balances is free, so
+    # the Credits tab still refreshes. If the dashboard can't be read, run as usual.
+    try:
+        from pilot_client import Dashboard, scraper_gate
+        allowed, why = scraper_gate(Dashboard.from_creds(creds).setting("scraper"))
+    except (Exception, SystemExit) as e:
+        allowed, why = True, ""
+        log(f"(could not read the scraper switch: {e} - running as usual)")
+    if not allowed:
+        log(f"{why[0].upper()}{why[1:]} - skipping this run.")
+        subprocess.run([sys.executable, "-u", str(HERE / "credits.py")], cwd=str(HERE), env=env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        log(f"======== [{time.strftime('%Y-%m-%d %H:%M:%S')}] scrape skipped (switched off) ========")
+        trim_log()
+        return 0
+
     proc = subprocess.Popen(
         [sys.executable, "-u", str(HERE / "push.py"),
          "--min-grade", "C", "--prune-days", "10", "--max-probes", "25"],
@@ -100,6 +117,7 @@ def main() -> int:
         step("notify", str(HERE / "notify.py"), "error", f"Scrape run failed (exit {rc})",
              "push.py stopped early - see scrape.log on the PC.")
     step("website emails", str(HERE / "enrich_contacts.py"))
+    step("credits", str(HERE / "credits.py"))        # balances for the dashboard's Credits tab
     # Auto-apply no longer runs here: cron runs it at 11:00 and 18:00 IST with
     # --batch morning / --batch evening, so a scrape never spends the day's quota.
 

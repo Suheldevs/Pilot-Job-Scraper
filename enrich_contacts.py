@@ -126,6 +126,11 @@ def main() -> int:
 
     creds = load_creds()
     dash = Dashboard.from_creds(creds)
+    from pilot_client import scraper_gate
+    allowed, why = scraper_gate(dash.setting("scraper"))
+    if not allowed and not args.force:
+        print(f"website emails: {why} - skipping, no credits spent")
+        return 0
     state = fb.feature_state("website_emails")
     tried = state.get("tried", {})
     cutoff = (dt.date.today() - dt.timedelta(days=int(cfg["retry_after_days"]))).isoformat()
@@ -136,8 +141,10 @@ def main() -> int:
              and not c.get("hr") and not c.get("em") and c["id"] not in tried
              and "(hiring post)" not in c["n"]]
     prio = {t: i for i, t in enumerate(cfg["priority_cities"])}
-    leads.sort(key=lambda c: (prio.get(c["tab"], 99), -(c.get("posted_at") or c.get("created_at") or 0),
-                              -(c.get("score") or 0)))
+    # Best leads first: grade A, then the priority cities, then score. With the
+    # daily credit budget limited, the strongest matches get their email first.
+    leads.sort(key=lambda c: (c.get("grade") != "A", prio.get(c["tab"], 99),
+                              -(c.get("score") or 0), -(c.get("posted_at") or c.get("created_at") or 0)))
 
     found_n, checked = 0, 0
     results = []

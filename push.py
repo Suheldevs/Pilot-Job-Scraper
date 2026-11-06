@@ -15,6 +15,7 @@ Env fallbacks: JO_URL, JO_EMAIL, JO_PASSWORD. Prefer JO_PASSWORD over --password
 an argument is visible in `ps` to every user on the host and lands in shell history.
 """
 import argparse
+import json
 import os
 import sys
 from typing import Dict, List, Tuple
@@ -28,6 +29,7 @@ import httpx
 
 import events
 import pipeline
+import qualify
 import scheduler
 from models import Job
 
@@ -56,6 +58,25 @@ def dedupe(jobs: List[Job]) -> List[Job]:
         seen.add(key)
         out.append(job)
     return out
+
+
+# What the dashboard's Settings > Scraper page stores under the `scraper` key.
+# Keep in step with SCRAPER_DEFAULTS in index.html.
+SCRAPER_DEFAULTS = {"enabled": True, "quality_floor": "B", "remote_india_only": True,
+                    "linkedin_jd": True, "prune_days": 10}
+
+
+def load_scraper_settings(client: httpx.Client, base_url: str) -> dict:
+    """The Settings page's scraper options. Unreadable means defaults, never a stop:
+    a dashboard hiccup must not silently switch the scraper off or on."""
+    cfg = dict(SCRAPER_DEFAULTS)
+    try:
+        resp = client.get(f"{base_url}/api/settings/scraper", timeout=REQUEST_TIMEOUT)
+        if resp.status_code == 200 and resp.json().get("value"):
+            cfg.update(json.loads(resp.json()["value"]))
+    except (httpx.RequestError, ValueError):
+        pass
+    return cfg
 
 
 def prune(client: httpx.Client, base_url: str, days: int) -> int:
@@ -234,6 +255,8 @@ def main():
                              "a plain run still touches every source. If the "
                              "schedule can't be read the run proceeds as "
                              "normal — a broken scheduler never blocks a scrape.")
+    parser.add_argument("--force", action="store_true",
+                        help="run even when the scraper is switched off in Settings")
     parser.add_argument("--prune-days", type=int, default=0, metavar="N",
                         help="before pushing, drop scraped leads older than N days "
                              "that were never acted on (0 = don't prune)")
@@ -270,6 +293,21 @@ def main():
             print(f"Logging into {base_url} ...")
             login(client, base_url, args.email, args.password)
             print("Logged in.")
+
+            scfg = load_scraper_settings(client, base_url)
+            from pilot_client import scraper_gate
+            allowed, why = scraper_gate(scfg)
+            if not allowed and not args.force:
+                print(f"{why[0].upper()}{why[1:]} — nothing to do (--force overrides).")
+                rec.end("ok", message=why, counts={"submitted": 0})
+                return
+            pipeline.QUALITY_FLOOR = scfg.get("quality_floor") if scfg.get("quality_floor") in ("A", "B", "C") else "B"
+            qualify.REMOTE_INDIA_ONLY = bool(scfg.get("remote_india_only", True))
+            if not scfg.get("linkedin_jd", True):
+                import sources.linkedin as _li
+                _li.MAX_JD_FETCH = 0
+            if args.prune_days > 0 and scfg.get("prune_days") is not None:
+                args.prune_days = max(0, int(scfg["prune_days"]))   # 0 turns pruning off
 
             if args.prune_days > 0:
                 removed = prune(client, base_url, args.prune_days)
@@ -346,7 +384,7 @@ def main():
         print("grades: " + ", ".join(f"{g}:{grades[g]}" for g in "ABCD" if g in grades))
         print(f"platforms: {platforms}")
         print(f"{dropped} dropped (location not one of {'/'.join(TABS)})")
-        print(f"{gated} dropped by the quality gate (below grade {args.min_grade}"
+        print(f"{gated} dropped by the quality gate (below grade {max(args.min_grade, pipeline.QUALITY_FLOOR)}"
               f"{', or no contact route' if args.require_contact else ''})")
         print(f"{len(companies)} companies to push: "
               f"{ {tab: n for tab, n in per_tab.items() if n} }")

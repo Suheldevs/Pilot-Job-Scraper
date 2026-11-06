@@ -75,7 +75,9 @@ NOT_A_TITLE = re.compile(r"^(tech\s*stack|skills?|requirements?|experience|locat
 def _tidy_title(part: str) -> str:
     part = re.sub(r"(?i)we[’']?re\s+hiring|we\s+are\s+hiring|hiring\s*(alert)?\s*[!:]*|urgent(ly)?|#\w+", "", part)
     part = re.sub(r"^[^\w(]+|[^\w)]+$", "", part)        # emoji, pins, dashes at either end
-    return re.sub(r"\s{2,}", " ", part).strip()
+    part = re.sub(r"\s{2,}", " ", part).strip()
+    import qualify
+    return qualify.clean_title(part)
 
 
 def _role(headline: str, body: str) -> str:

@@ -33,6 +33,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 import profile as _profile
+import qualify
 from locations import classify
 
 # Generic role words — plausibly ours, but they say nothing about which stack.
@@ -146,8 +147,14 @@ def is_relevant(job) -> Tuple[bool, str]:
     # 1. Right kind of work? Title+tags first. The JD is only allowed to
     #    rescue a post whose title is at least an engineering role — otherwise
     #    "Growth Analyst" at a company whose JD says "we use React" sneaks in.
+    bad = qualify.hard_reject(job)
+    if bad:
+        return False, bad
+
     hit = has_role_match(haystack)
-    if not hit and _has_term(title, ENGINEERING_NOUNS):
+    # Only a real job description may rescue a generic title. Instahyre's
+    # jd_text is an employer tagline, which let "AI Engineer" in on one word.
+    if not hit and _has_term(title, ENGINEERING_NOUNS) and qualify.has_real_jd(job):
         hit = has_role_match((job.jd_text or "")[:2000])
     if not hit:
         return False, "no role/stack match"

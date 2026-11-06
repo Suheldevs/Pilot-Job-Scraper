@@ -351,6 +351,11 @@ def _score_match(job: Job, reasons: List[str]) -> int:
     intern = _matched(_COMPILED_INTERN, title)
 
     band = parse_experience(job.jd_text)
+    if band is None and job.experience_min is not None:
+        # Structured experience from the source (Naukri's URL slug, a post's
+        # "2-4 years") counts exactly like a band found in the JD.
+        band = (int(job.experience_min),
+                int(job.experience_max) if job.experience_max is not None else None)
     # An internship JD's "0-1 years" is describing the internship, not a band
     # this candidate wants to sit in — so it earns no overlap credit.
     if band and not intern:
@@ -436,6 +441,10 @@ def score_job(job: Job) -> None:
     job.score = max(0, min(100, raw))
     job.grade = grade_for(job.score)
     job.reasons = reasons
+    # A high score is not evidence by itself: the cap enforces title-first,
+    # known-experience, reachable, real-JD requirements for A (see qualify.py).
+    import qualify
+    qualify.apply_cap(job)
 
 
 def score_all(jobs: List[Job]) -> None:

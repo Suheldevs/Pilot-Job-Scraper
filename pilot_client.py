@@ -74,3 +74,26 @@ class Dashboard:
                                              "body": body[:1900], "url": url})
         except Exception as e:
             print(f"(notification not delivered: {e})", flush=True)
+
+
+def scraper_gate(cfg: dict | None, now_ms: int | None = None) -> tuple[bool, str]:
+    """(run_allowed, why_not) for the Settings > Scraper switch.
+
+    `enabled: false` stops every scheduled run. An optional `resume_at` (epoch ms,
+    written by the "Pause for N days" button) makes the stop temporary: once it
+    passes, runs go ahead again with no one having to flip the switch back.
+    """
+    import time
+    from datetime import datetime
+    cfg = cfg or {}
+    if cfg.get("enabled", True):
+        return True, ""
+    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+    try:
+        resume = int(cfg.get("resume_at") or 0)
+    except (TypeError, ValueError):
+        resume = 0
+    if resume and now_ms >= resume:
+        return True, ""
+    until = f" until {datetime.fromtimestamp(resume / 1000):%d %b %H:%M}" if resume else ""
+    return False, f"scraper is switched off in Settings{until}"

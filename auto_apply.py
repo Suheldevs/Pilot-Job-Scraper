@@ -755,8 +755,13 @@ def main() -> int:
     # Generic addresses (info@, contact@) are allowed; the safety checks are not relaxed.
     dir_sent = 0
     if cfg.get("directory_fill", True) and used + sent_now < limit:
+        # Only a hiring inbox. The Directory also holds sales@, marketing@, support@,
+        # info@ and personal gmail addresses; a "Full Stack AI Engineer" pitch to
+        # those is spam that burns the sending account's reputation.
+        HIRING_BOX = re.compile(r"(?<![a-z])(careers?|hr|jobs?|recruit\w*|talent\w*|hiring|hire|resumes?|cv|apply|people)(?![a-z])", re.I)
         def pick_email(d):
-            ems = [e for e in d.get("emails") or [] if e.get("e")]
+            ems = [e for e in d.get("emails") or []
+                   if e.get("e") and HIRING_BOX.search(e["e"].split("@")[0])]
             ems.sort(key=lambda e: (e.get("t") != "hr", e.get("s") != "V",
                                     not re.search(r"career|hr|job|recruit|talent|hiring", e["e"].split("@")[0], re.I)))
             return ems[0]["e"].strip() if ems else ""

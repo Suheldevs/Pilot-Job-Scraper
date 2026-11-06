@@ -18,6 +18,8 @@ regardless, at which point back off rather than retrying harder.
 from typing import List
 from urllib.parse import urlencode
 
+import re
+
 import httpx
 from bs4 import BeautifulSoup
 
@@ -26,6 +28,12 @@ from models import Job
 from sources.base import Source
 
 API = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+# The same public guest family serves one posting's full text, no login needed.
+DETAIL_API = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{id}"
+# Search cards carry no description, so every LinkedIn lead used to arrive blind:
+# no stack, no experience. Fetching the JD for leads that already pass the title
+# check is what lets the grader tell a real match from a keyword hit.
+MAX_JD_FETCH = 80
 
 
 class LinkedInSource(Source):
@@ -50,6 +58,50 @@ class LinkedInSource(Source):
                                              days=14 if location in priority else 7))
                     self._pace()
 
+            jobs = self._hydrate(client, jobs)
+
+        return jobs
+
+    def _hydrate(self, client: httpx.Client, jobs: List[Job]) -> List[Job]:
+        """Fetch the JD for jobs that already pass the title/level/city gate."""
+        import relevance
+        seen, candidates = set(), []
+        for job in jobs:
+            if job.url in seen:
+                continue
+            seen.add(job.url)
+            ok, _ = relevance.is_relevant(job)
+            if ok:
+                candidates.append(job)
+        fetched = failed = 0
+        for job in candidates[:MAX_JD_FETCH]:
+            m = re.search(r"(\d{8,})/?$", job.url)
+            if not m:
+                continue
+            resp = self._fetch(client, DETAIL_API.format(id=m.group(1)))
+            if resp is None:
+                failed += 1
+                if failed >= 5:       # rate-limited: back off, don't push harder
+                    print(f"[{self.name}] detail fetch failing — stopping JD hydration")
+                    break
+                continue
+            soup = BeautifulSoup(resp.text, "lxml")
+            body = soup.find("div", class_="show-more-less-html__markup")
+            if body:
+                job.jd_text = body.get_text("\n", strip=True)
+                fetched += 1
+            for item in soup.select("li.description__job-criteria-item"):
+                text = item.get_text(" ", strip=True)
+                if text.lower().startswith("employment type"):
+                    job.employment_type = text.split(" ", 2)[-1].lower()
+            self._pace()
+        # The same posting turns up under several keywords; share what was fetched.
+        by_url = {j.url: j for j in candidates if j.jd_text}
+        for job in jobs:
+            src = by_url.get(job.url)
+            if src and src is not job:
+                job.jd_text, job.employment_type = src.jd_text, src.employment_type
+        print(f"[{self.name}] JD fetched for {fetched} of {len(candidates)} relevant leads")
         return jobs
 
     def _search(self, client: httpx.Client, keyword: str, location: str,

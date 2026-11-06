@@ -282,6 +282,12 @@ class NaukriSitemapSource(Source):
                         platform="naukri",  # same site, so the dashboard tag reads "Naukri"
                         location_raw=parsed["city"],
                         jd_text="",  # no description exists — see module docstring
+                        # The slug's band is the only experience data Naukri
+                        # gives; it was parsed for filtering and then dropped.
+                        experience_raw=(f"{parsed['exp_min']}-{parsed['exp_max']} years"
+                                        if parsed["exp_min"] is not None else ""),
+                        experience_min=parsed["exp_min"],
+                        experience_max=parsed["exp_max"],
                     ))
 
                 self._pace()

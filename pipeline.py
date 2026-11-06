@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Tuple
 
 import config
 import mx
+import qualify
 from extract import enrich_job, indian_mobile, split_contacts
 from locations import classify
 from models import Job
@@ -272,6 +273,9 @@ def run(
     # grade gate downstream still trims, and a lead you have to skim past
     # beats a lead you never saw.
     before = len(jobs)
+    fixed = _safe_layer("layer 3a — normalise", lambda: qualify.normalise(jobs), 0)
+    if fixed:
+        print(f"layer 3a — normalise: repaired or blanked {fixed} title(s)")
     jobs = _safe_layer("layer 3 — relevance",
                        lambda: filter_jobs(jobs)[0], jobs, rec, "relevance")
     print(f"layer 3 — relevance: {len(jobs)} of {before} jobs are actually ours")
@@ -367,6 +371,11 @@ def build_companies(jobs: List[Job]) -> Tuple[List[dict], int]:
 
 GRADE_ORDER = {"A": 4, "B": 3, "C": 2, "D": 1, "": 0}
 
+# Quality over quantity: whatever the profile's own min_grade says, nothing
+# below B is pushed. 412 of 692 live leads were grade C — search results with no
+# JD and no way to reach anyone — and they buried the 30 worth writing to.
+QUALITY_FLOOR = "B"
+
 
 def apply_quality_gate(companies: List[dict], min_grade: str = "B",
                        require_contact: bool = False) -> List[dict]:
@@ -379,7 +388,7 @@ def apply_quality_gate(companies: List[dict], min_grade: str = "B",
     An ungraded lead is dropped too: if scoring couldn't form a view, there is
     nothing to justify putting it in front of you.
     """
-    floor = GRADE_ORDER.get(min_grade, 3)
+    floor = max(GRADE_ORDER.get(min_grade, 3), GRADE_ORDER[QUALITY_FLOOR])
     kept = []
     for c in companies:
         if GRADE_ORDER.get(c.get("grade", ""), 0) < floor:

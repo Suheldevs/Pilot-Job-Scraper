@@ -1085,6 +1085,8 @@ const VIEWS = [
   ["events",    "Events",    "⚡"],
   ["profile",   "Profile",   "◈"],
   ["data",      "Data",      "⇅"],
+  ["credits",   "Credits",   "◎"],
+  ["settings",  "Settings",  "⚙"],
 ];
 /* Line icons for the phone tab bar (Lucide shapes, ISC licence). The desktop
    sidebar keeps the text glyphs above; CSS shows one or the other by width. */
@@ -1096,13 +1098,15 @@ const NAV_SVG = {
   message:   '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   events:    '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
   profile:   '<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  credits:   '<circle cx="12" cy="12" r="9"/><path d="M14.8 9a2.8 2.8 0 0 0-2.8-1.5c-1.7 0-3 1-3 2.3s1.2 2 3 2.4 3 1 3 2.4-1.3 2.3-3 2.3A2.9 2.9 0 0 1 9 15.5"/><path d="M12 6v1.5M12 16.5V18"/>',
+  settings:  '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   data:      '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>',
 };
 const navSvg = (key) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_SVG[key] || ""}</svg>`;
 
 /* Directory took Analytics' slot on the phone bar: it is a working screen
    (call, message, mark), Analytics is read now and then. */
-const MORE_VIEWS = ["analytics", "events", "profile", "data"];
+const MORE_VIEWS = ["analytics", "events", "profile", "data", "credits", "settings"];
 
 /** Phone "More" sheet: the views that don't fit the bottom bar, plus theme and
  *  sign-out, which leave the phone's top bar for just the title and the bell. */
@@ -2598,13 +2602,285 @@ function paintAutoApply(host, cfg, status){
   });
 }
 
+/* ------------------------------------------------------------- credits --- */
+/* Balances for every paid account. The API keys live on the server, so the
+   browser cannot ask Firecrawl or Apify itself: credits.py (run after each
+   scrape) checks them and stores the result under the setting `credits_status`.
+   This page only displays what it last stored — and says how old that is. */
+function fmtAmount(n, unit){
+  const v = Number(n) || 0;
+  if(unit === "USD") return "$" + v.toFixed(v < 1 ? 3 : 2);
+  return Math.round(v).toLocaleString();
+}
+
+function creditCard(a){
+  const d = document.createElement("div");
+  d.className = "card";
+  if(a.error){
+    d.innerHTML = `<div class="card-hd"><h3>${esc(a.service)}</h3><span class="meta">${esc(a.label)}</span></div>
+      <div class="card-bd"><div class="callout warn"><b>Couldn't check this account.</b> ${esc(a.error)}</div></div>`;
+    return d;
+  }
+  const total = Number(a.total) || 0, left = Number(a.remaining) || 0;
+  const pctLeft = total > 0 ? Math.max(0, Math.min(100, left / total * 100)) : 0;
+  const low = total > 0 && pctLeft < 15, mid = total > 0 && pctLeft < 40;
+  const color = low ? "var(--red)" : mid ? "var(--amber, var(--accent))" : "var(--green)";
+  const end = a.period_end ? new Date(a.period_end) : null;
+  d.innerHTML = `<div class="card-hd"><h3>${esc(a.service)}</h3><span class="meta">${esc(a.label)}</span></div>
+    <div class="card-bd">
+      <div style="font-size:28px;font-weight:700;line-height:1.1">${esc(fmtAmount(left, a.unit))}
+        <span class="hint" style="font-size:14px;font-weight:400">${esc(a.unit)} left of ${esc(fmtAmount(total, a.unit))}</span></div>
+      <div style="height:8px;border-radius:99px;background:var(--line, rgba(128,128,128,.25));margin:12px 0 8px;overflow:hidden"
+           role="progressbar" aria-valuenow="${Math.round(pctLeft)}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(a.service)} remaining">
+        <div style="height:100%;width:${pctLeft.toFixed(1)}%;background:${color}"></div></div>
+      <p class="hint">${esc(fmtAmount(a.used, a.unit))} used${end && !isNaN(end) ? " · resets " + esc(end.toLocaleDateString([], { day:"numeric", month:"short" })) : ""}</p>
+      ${low ? `<p class="hint mt2"><b>Running low</b> — under 15% left.</p>` : ""}
+      ${a.note ? `<p class="hint mt2">${esc(a.note)}</p>` : ""}
+    </div>`;
+  return d;
+}
+
+function viewCredits(host){
+  host.append(pageHead("Credits",
+    "What is left on each paid account the scraper uses. Updated after every scrape."));
+  const s = stack();
+  s.innerHTML = `<div class="loading">Loading…</div>`;
+  host.append(s);
+  (async () => {
+    let st = null;
+    try{
+      const r = await api("/api/settings/credits_status");
+      if(r && r.value) st = JSON.parse(r.value);
+    }catch(e){ s.innerHTML = ""; s.append(notReady("Couldn't read the credits status.", e.message)); return; }
+    s.innerHTML = "";
+    if(!st || !Array.isArray(st.accounts) || !st.accounts.length){
+      s.innerHTML = `<div class="empty"><b>No balances yet</b>The scraper publishes them after each run. To do it now, run
+        <code>python credits.py</code> on the server.</div>`;
+      return;
+    }
+    const age = Date.now() - (Number(st.checked_at) || 0);
+    const stale = age > 8 * 3600 * 1000;
+    const line = document.createElement("p");
+    line.className = "hint";
+    line.innerHTML = `Last checked <b>${esc(ago(st.checked_at))}</b>${stale
+      ? ` — <b>this is old</b>; the scraper may be off or failing. Run <code>python credits.py</code> to refresh.` : "."}`;
+    s.append(line);
+    const grid = document.createElement("div");
+    grid.className = "grid g3";
+    for(const a of st.accounts) grid.append(creditCard(a));
+    s.append(grid);
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = "Balances come from each provider's own usage endpoint. Adding another key to the server's credentials file " +
+      "(for example FIRECRAWL_API_KEY_SECOND or APIFY_TOKEN_PERSONAL) adds another row here.";
+    s.append(note);
+  })();
+}
+
+/* ------------------------------------------------------------ settings --- */
+/* One page for the things that run on their own: the scraper, auto-apply and
+   the core options. The scraper (push.py on the VPS) reads the `scraper` setting
+   at the start of every run, so a switch here takes effect on its next run;
+   it is not a live process this page can start or stop. Keep SCRAPER_DEFAULTS in
+   step with SCRAPER_DEFAULTS in push.py. */
+const SCRAPER_DEFAULTS = {
+  enabled: true,            // master switch: off = every scheduled run exits at once
+  quality_floor: "B",       // nothing below this grade is pushed (A | B | C)
+  remote_india_only: true,  // foreign-board remote jobs must say India/APAC/worldwide
+  linkedin_jd: true,        // read each relevant LinkedIn job's full description
+  prune_days: 10,           // untouched scraped leads older than this are dropped (0 = never)
+};
+
+async function saveSetting(key, value){
+  await api("/api/settings/" + key, { method: "PUT", body: JSON.stringify({ value: JSON.stringify(value) }) });
+}
+
+function scraperCard(){
+  const p = panel("Scraper", "runs on your server");
+  p.body.innerHTML = `<div class="loading">Loading…</div>`;
+  (async () => {
+    let cfg = { ...SCRAPER_DEFAULTS };
+    try{
+      const r = await api("/api/settings/scraper");
+      if(r && r.value) cfg = { ...SCRAPER_DEFAULTS, ...JSON.parse(r.value) };
+    }catch(e){ /* defaults — the form still renders */ }
+    paintScraper(p.body, cfg);
+  })();
+  return p.card;
+}
+
+function paintScraper(host, cfg){
+  /* A pause (resume_at in the future) is "off"; once resume_at passes the
+     scraper runs again by itself, so the page shows it as on. */
+  const resume = Number(cfg.resume_at) || 0;
+  const paused = !cfg.enabled && resume > Date.now();
+  const on = cfg.enabled || (resume > 0 && resume <= Date.now());
+  const resumeTxt = resume ? new Date(resume).toLocaleString([], { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "";
+  host.innerHTML = `
+    <div class="callout ${on ? "info" : "warn"} mb4">
+      <b>Scraper is ${on ? "on" : paused ? "paused" : "off"}.</b>
+      ${on
+        ? "Each scheduled run collects, grades and pushes leads, then looks up website emails."
+        : `Scheduled runs start, see this switch, and stop before scraping — no Firecrawl credits are spent.
+           ${paused ? `It resumes by itself on <b>${esc(resumeTxt)}</b>.` : "Turn it back on whenever you want."}
+           Auto-apply is separate and keeps sending.`}
+    </div>
+    <div class="row mb3">
+      <label class="row tight"><input type="checkbox" id="sc-on" ${on ? "checked" : ""}> Scraper on</label>
+      <span class="hint">or</span>
+      <input class="f sm w-num" id="sc-pdays" type="number" min="1" max="60" value="4" aria-label="Days to pause">
+      <span class="hint">days</span>
+      <button class="btn" id="sc-pause">Pause, then resume automatically</button>
+    </div>
+    <div class="grid g3 mb3">
+      <div class="field"><label class="lb" for="sc-floor">Lowest grade to keep</label>
+        <select class="f" id="sc-floor">
+          ${[["A","A only — strictest"],["B","B and above — recommended"],["C","C and above — everything graded"]]
+            .map(([v, t]) => `<option value="${v}"${cfg.quality_floor === v ? " selected" : ""}>${t}</option>`).join("")}
+        </select>
+        <p class="hint mt2">A needs a matching title, a known experience fit, a contact route and a real job description.</p></div>
+      <div class="field"><label class="lb" for="sc-prune">Drop untouched leads after (days)</label>
+        <input class="f w-num" id="sc-prune" type="number" min="0" max="365" value="${Number(cfg.prune_days) || 0}">
+        <p class="hint mt2">0 keeps them forever. Anything you contacted or noted is always kept.</p></div>
+      <div class="field"><label class="lb">Quality rules</label>
+        <label class="row tight"><input type="checkbox" id="sc-india" ${cfg.remote_india_only ? "checked" : ""}> Remote jobs must be open to India</label>
+        <label class="row tight mt2"><input type="checkbox" id="sc-jd" ${cfg.linkedin_jd ? "checked" : ""}> Read LinkedIn job descriptions</label></div>
+    </div>
+    <div class="row"><button class="btn primary" id="sc-save">Save scraper settings</button>
+      <span class="hint" id="sc-msg"></span></div>
+    <p class="hint mt3">Experience range, roles and cities come from your <b>Profile</b>. A run started by hand with
+      <code>python push.py --force</code> ignores the switch.</p>`;
+  const save = async (next, note) => {
+    try{ await saveSetting("scraper", next); toast(note); paintScraper(host, next); }
+    catch(e){ $("sc-msg").textContent = "Couldn't save: " + e.message; return false; }
+    return true;
+  };
+  // The switch applies on its own: only that flag changes, and a manual choice clears any pause.
+  $("sc-on").addEventListener("change", async () => {
+    const box = $("sc-on");
+    if(!(await save({ ...cfg, enabled: box.checked, resume_at: 0 }, "Scraper " + (box.checked ? "on" : "off")))) box.checked = !box.checked;
+  });
+  $("sc-pause").addEventListener("click", () => {
+    const d = Math.max(1, Math.min(60, Math.round(Number($("sc-pdays").value)) || 4));
+    save({ ...cfg, enabled: false, resume_at: Date.now() + d * 86400000 }, `Scraper paused for ${d} day${d === 1 ? "" : "s"}`);
+  });
+  $("sc-save").addEventListener("click", () => save({
+    ...cfg,
+    quality_floor: $("sc-floor").value,
+    prune_days: Math.max(0, Math.min(365, Math.round(Number($("sc-prune").value)) || 0)),
+    remote_india_only: $("sc-india").checked,
+    linkedin_jd: $("sc-jd").checked,
+  }, "Scraper settings saved"));
+}
+
+/* Per-source on/off and interval, from /api/schedule (the same table the
+   scraper's --due-only reads). */
+function sourcesCard(){
+  const p = panel("Sources", "which platforms are scraped, and how often");
+  p.body.innerHTML = `<div class="loading">Loading…</div>`;
+  const paint = async () => {
+    let data;
+    try{ data = await api("/api/schedule"); }
+    catch(e){ p.body.textContent = ""; p.body.append(notReady("The schedule endpoint isn't answering.", e.message)); return; }
+    const rows = Array.isArray(data) ? data : (data.sources || []);
+    p.body.textContent = "";
+    if(!rows.length){
+      p.body.innerHTML = `<div class="empty"><b>No sources yet</b>The list fills itself the first time the scraper reports a run.</div>`;
+      return;
+    }
+    p.body.insertAdjacentHTML("beforeend",
+      `<p class="hint mb4">Untick a source to skip it on every run that uses <code>--due-only</code>.
+        Intervals are in minutes; the monthly Hacker News thread needs far less than ATS boards.</p>`);
+    const tbl = document.createElement("div");
+    tbl.className = "scrollx";
+    tbl.innerHTML = `<table><thead><tr><th>On</th><th>Source</th><th>Every</th><th>Last run</th><th>Status</th><th>Due</th></tr></thead>
+      <tbody>${rows.map(r => {
+        const st = String(r.last_status || "");
+        const cls = st === "ok" ? "good" : st === "fail" ? "bad" : (st === "partial" || st === "skip") ? "warn" : "";
+        const on = r.enabled === undefined ? true : !!Number(r.enabled);
+        return `<tr><td><input type="checkbox" data-en="${esc(r.source)}" ${on ? "checked" : ""} aria-label="${esc(r.source)} on"></td>
+          <td class="strong">${esc(PLATFORM_LABEL[r.source] || r.source)}</td>
+          <td><input class="f sm w-num" type="number" min="5" max="43200" value="${Number(r.interval_mins) || 0}" data-src="${esc(r.source)}"
+                aria-label="Interval in minutes for ${esc(r.source)}"> <span class="hint">min · ${esc(mins(r.interval_mins))}</span></td>
+          <td>${esc(r.last_run_at ? ago(r.last_run_at) : "never")}</td>
+          <td>${st ? `<span class="pill ${cls}">${esc(st)}</span>` : `<span class="pill">—</span>`}</td>
+          <td>${!on ? `<span class="pill">off</span>` : r.due ? `<span class="pill warn">due now</span>` : `<span class="pill">${esc(until(r.next_due_at))}</span>`}</td></tr>`;
+      }).join("")}</tbody></table>`;
+    p.body.append(tbl);
+    const row = document.createElement("div");
+    row.className = "row mt4";
+    const btn = document.createElement("button");
+    btn.className = "btn primary"; btn.textContent = "Save sources";
+    const msg = document.createElement("span");
+    msg.className = "hint";
+    row.append(btn, msg);
+    p.body.append(row);
+    const was = new Map(rows.map(r => [String(r.source),
+      { m: Number(r.interval_mins) || 0, e: r.enabled === undefined ? true : !!Number(r.enabled) }]));
+    btn.addEventListener("click", async () => {
+      const changed = [];
+      for(const inp of tbl.querySelectorAll("input[data-src]")){
+        const src = inp.dataset.src;
+        const m = Math.round(Number(inp.value) || 0);
+        const e = tbl.querySelector(`input[data-en="${CSS.escape(src)}"]`).checked;
+        const w = was.get(src);
+        if(m >= 5 && (m !== w.m || e !== w.e)) changed.push({ source: src, interval_mins: m, enabled: e });
+      }
+      if(!changed.length){ msg.textContent = "Nothing changed."; return; }
+      msg.textContent = "Saving…";
+      try{
+        await api("/api/schedule", { method: "PUT", body: JSON.stringify({ sources: changed }) });
+        toast(`Updated ${changed.length} source${changed.length === 1 ? "" : "s"}`);
+        paint();
+      }catch(err){ msg.textContent = "Couldn't save: " + err.message; }
+    });
+  };
+  paint();
+  return p.card;
+}
+
+function coreCard(){
+  const p = panel("Core", "account and appearance");
+  const themeLabel = () => (THEMES.find(t => t[0] === theme) || THEMES[0])[1];
+  p.body.innerHTML = `
+    <div class="grid g3">
+      <div class="field"><label class="lb">Profile</label>
+        <p class="hint mb2">${ME.name ? `<b>${esc(ME.name)}</b>` : "No profile loaded"}${ME.role ? " · " + esc(ME.role) : ""}${ME.years ? " · " + esc(ME.years) + " yrs" : ""}</p>
+        <button class="btn" id="co-profile">Edit roles, cities, experience…</button></div>
+      <div class="field"><label class="lb">Appearance</label>
+        <button class="btn" id="co-theme">${esc(themeLabel())}</button></div>
+      <div class="field"><label class="lb">Data</label>
+        <button class="btn" id="co-data">Import, export &amp; prune…</button>
+        <a class="btn ghost mt2" href="/api/logout">Sign out</a></div>
+    </div>`;
+  const go = (v) => { VIEW = v; localStorage.setItem("jo:view", v); render(); };
+  p.body.querySelector("#co-profile").addEventListener("click", () => go("profile"));
+  p.body.querySelector("#co-data").addEventListener("click", () => go("data"));
+  p.body.querySelector("#co-theme").addEventListener("click", (e) => { $("theme").click(); e.target.textContent = themeLabel(); });
+  return p.card;
+}
+
+function viewSettings(host){
+  host.append(pageHead("Settings",
+    "Control what runs on its own: the scraper, auto-apply and the core options. Changes apply to the next run."));
+  const s = stack();
+  s.append(scraperCard());
+  s.append(sourcesCard());
+  s.append(autoApplyCard());
+  s.append(coreCard());
+  host.append(s);
+}
+
 function viewData(host){
   host.append(pageHead("Import & export",
     "Bring companies in from a file or the scraper, and take a full backup out. Imports only ever add — nothing already here gets overwritten."));
 
   const s = stack();
 
-  s.append(autoApplyCard());
+  const moved = document.createElement("p");
+  moved.className = "hint";
+  moved.innerHTML = `Auto-apply and scraper controls moved to <a href="#" id="go-settings">Settings</a>.`;
+  s.append(moved);
 
   const imp = panel("Import", "CSV or JSON");
   imp.body.innerHTML = `
@@ -2670,6 +2946,7 @@ python push.py</div>
   s.append(pr.card);
 
   host.append(s);
+  $("go-settings").addEventListener("click", (e) => { e.preventDefault(); VIEW = "settings"; localStorage.setItem("jo:view", VIEW); render(); });
 
   const prDays = () => Math.max(1, Math.min(365, Number($("pr-days").value) || 10));
   $("pr-check").addEventListener("click", async () => {
@@ -3041,9 +3318,6 @@ function viewProfile(host){
   sim.body.innerHTML = `<div class="loading">Loading…</div>`;
   s.append(sim.card);
 
-  const sched = panel("Source schedule", "one clock per source");
-  sched.body.innerHTML = `<div class="loading">Loading…</div>`;
-  s.append(sched.card);
 
   /* ---- profile list + switcher ---- */
   async function paintList(){
@@ -3395,87 +3669,7 @@ function viewProfile(host){
     }
   }
 
-  /* ---- per-source schedule ---- */
-  async function paintSchedule(){
-    let data;
-    try{ data = await api("/api/schedule"); }
-    catch(e){
-      sched.body.textContent = "";
-      sched.body.append(notReady("The schedule endpoint isn't answering.", e.message));
-      return;
-    }
-    const rows = Array.isArray(data) ? data : (data.sources || []);
-    sched.body.textContent = "";
-    sched.body.insertAdjacentHTML("beforeend",
-      `<p class="hint mb4">One interval for everything is wrong in both directions:
-        the HN hiring thread is posted monthly, while ATS boards change daily. A run
-        with <span class="mono">--due-only</span> touches only the sources whose
-        interval has actually elapsed.</p>`);
-
-    if(!rows.length){
-      const e = document.createElement("div");
-      e.className = "empty";
-      e.innerHTML = `<b>No sources scheduled</b>The schedule fills itself the first ` +
-        `time the scraper reports a run.`;
-      sched.body.append(e);
-      return;
-    }
-
-    const tbl = document.createElement("div");
-    tbl.className = "scrollx";
-    tbl.innerHTML = `<table>
-      <thead><tr><th>Source</th><th>Every</th><th>Last run</th><th>Status</th>
-        <th>Due</th></tr></thead>
-      <tbody>${rows.map(r => {
-        const st = String(r.last_status || "");
-        const cls = st === "ok" ? "good" : st === "fail" ? "bad"
-                  : (st === "partial" || st === "skip") ? "warn" : "";
-        return `<tr>
-          <td class="strong">${esc(PLATFORM_LABEL[r.source] || r.source)}</td>
-          <td><input class="f sm w-num" type="number" min="5" max="43200"
-                value="${Number(r.interval_mins) || 0}"
-                data-src="${esc(r.source)}"
-                aria-label="Interval in minutes for ${esc(r.source)}">
-            <span class="hint">min · ${esc(mins(r.interval_mins))}</span></td>
-          <td>${esc(r.last_run_at ? ago(r.last_run_at) : "never")}</td>
-          <td>${st ? `<span class="pill ${cls}">${esc(st)}</span>` : `<span class="pill">—</span>`}</td>
-          <td>${r.due ? `<span class="pill warn">due now</span>`
-                       : `<span class="pill">${esc(until(r.next_due_at))}</span>`}</td>
-        </tr>`;
-      }).join("")}</tbody></table>`;
-    sched.body.append(tbl);
-
-    const row = document.createElement("div");
-    row.className = "row mt4";
-    const btn = document.createElement("button");
-    btn.className = "btn primary";
-    btn.textContent = "Save intervals";
-    const status = document.createElement("span");
-    status.className = "hint";
-    row.append(btn, status);
-    sched.body.append(row);
-
-    const original = new Map(rows.map(r => [String(r.source), Number(r.interval_mins) || 0]));
-    btn.addEventListener("click", async () => {
-      const changed = [];
-      for(const inp of tbl.querySelectorAll("input[data-src]")){
-        const src = inp.dataset.src;
-        const v = Math.round(Number(inp.value) || 0);
-        if(v >= 5 && v !== original.get(src)) changed.push({ source: src, interval_mins: v });
-      }
-      if(!changed.length){ status.textContent = "Nothing changed."; return; }
-      status.textContent = "Saving…";
-      try{
-        await api("/api/schedule", { method: "PUT", body: JSON.stringify({ sources: changed }) });
-        status.textContent = `Updated ${changed.length} source${changed.length === 1 ? "" : "s"}.`;
-        toast("Schedule saved");
-        paintSchedule();
-      }catch(e){ status.textContent = "Couldn't save: " + e.message; }
-    });
-  }
-
   paintList();
-  paintSchedule();
 }
 
 /* --------------------------------------------------------- resume → profile */
@@ -4141,7 +4335,7 @@ function viewDirectory(host){
 const TITLES = {
   overview:"Overview", pipeline:"Pipeline", directory:"Directory", analytics:"Analytics",
   message:"Message", events:"Events", profile:"Profile",
-  data:"Import & export", add:"Add company",
+  data:"Import & export", settings:"Settings", credits:"Credits", add:"Add company",
 };
 
 function render(){
@@ -4159,6 +4353,8 @@ function render(){
     else if(VIEW === "events")    viewEvents(host);
     else if(VIEW === "profile")   viewProfile(host);
     else if(VIEW === "data")      viewData(host);
+    else if(VIEW === "settings")  viewSettings(host);
+    else if(VIEW === "credits")   viewCredits(host);
     else if(VIEW === "add")       viewAdd(host);
     else viewOverview(host);
   }catch(e){
