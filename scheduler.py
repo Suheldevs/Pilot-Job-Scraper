@@ -36,6 +36,7 @@ STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # sensibly instead of falling back to one flat interval for everything.
 DEFAULT_INTERVALS: Dict[str, int] = {
     "naukri_sitemap": 360,
+    "naukri_apify": 1440,          # paid per result: once a day is plenty
     "instahyre": 720,
     "greenhouse": 720,
     "lever": 720,

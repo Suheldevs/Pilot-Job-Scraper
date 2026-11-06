@@ -51,6 +51,8 @@ DISCOVERY = {
     # search / sitemap crawls
     "linkedin": ("sources.linkedin", "LinkedInSource"),
     "naukri_sitemap": ("sources.naukri_sitemap", "NaukriSitemapSource"),
+    # Naukri via a paid Apify actor: full JDs, experience, agency flags (~$0.05/run)
+    "naukri_apify": ("sources.naukri_apify", "NaukriApifySource"),
 }
 
 # Layer 2 — per-company ATS boards. These take a list of slugs.
